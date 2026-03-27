@@ -88,7 +88,7 @@ Used for work that is real and reviewable, may span sessions, needs collaborator
 ### Quick install (recommended)
 
 ```bash
-git clone https://github.com/your-org/claude-coordinator
+git clone https://github.com/dennisonbertram/claude-coordinator
 cd claude-coordinator
 ./install.sh
 ```

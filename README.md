@@ -122,6 +122,13 @@ To scaffold the `docs/` and `.coord/` directories in your project:
 ### Starting a session
 
 ```bash
+# If installed via install.sh:
+claude-coordinator
+```
+
+Or use the full command directly:
+
+```bash
 claude --agent coordinator
 ```
 

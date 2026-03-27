@@ -15,6 +15,7 @@ usage() {
 Usage: $(basename "$0") [OPTIONS]
 
 Install Claude Coordinator agents to ~/.claude/agents/.
+Also symlinks 'claude-coordinator' command to your PATH.
 
 Options:
   --init-project    Also initialize docs/ and .coord/ template directories
@@ -75,6 +76,32 @@ done
 echo ""
 echo "Agents installed successfully."
 
+# ─── Install CLI launcher ────────────────────────────────────────────────────
+
+BIN_SRC="$SCRIPT_DIR/bin/claude-coordinator"
+
+# Find a writable bin directory on PATH
+INSTALL_BIN=""
+for candidate in "$HOME/.local/bin" "$HOME/bin" "/usr/local/bin"; do
+  if echo "$PATH" | tr ':' '\n' | grep -qx "$candidate"; then
+    INSTALL_BIN="$candidate"
+    break
+  fi
+done
+
+if [ -n "$INSTALL_BIN" ]; then
+  mkdir -p "$INSTALL_BIN"
+  ln -sf "$BIN_SRC" "$INSTALL_BIN/claude-coordinator"
+  echo "  Symlinked: $INSTALL_BIN/claude-coordinator → $BIN_SRC"
+  echo ""
+  echo "You can now run: claude-coordinator"
+else
+  echo ""
+  echo "  Note: Could not find ~/.local/bin, ~/bin, or /usr/local/bin on your PATH."
+  echo "  To use the 'claude-coordinator' command, manually add a symlink:"
+  echo "    ln -s $(cd "$SCRIPT_DIR" && pwd)/bin/claude-coordinator /usr/local/bin/claude-coordinator"
+fi
+
 # ─── Initialize project (optional) ──────────────────────────────────────────
 
 if [ "$INIT_PROJECT" = true ]; then
@@ -127,6 +154,9 @@ fi
 cat <<EOF
 
 How to use Claude Coordinator:
+
+  Quick start:
+    claude-coordinator
 
   Start a session:
     claude --agent coordinator

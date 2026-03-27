@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Launch Claude Code with the coordinator agent
+# Usage: claude-coordinator [args...]
+#
+# This is a convenience wrapper. It passes all arguments through to claude.
+
+exec claude --agent coordinator "$@"

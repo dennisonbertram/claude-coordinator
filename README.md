@@ -301,7 +301,12 @@ model: sonnet   # Change to haiku, sonnet, or opus
 ---
 ```
 
-The defaults are `opus` for coordinator and reviewer, `sonnet` for worker, and `haiku` for reader. Using `sonnet` for the coordinator saves cost if your sessions are long.
+The defaults are:
+- `opus` — coordinator, coordinator-experimental, reviewer
+- `sonnet` — worker, briefer, planner
+- `haiku` — scribe
+
+Using `sonnet` for the coordinator or coordinator-experimental saves cost if your sessions are long.
 
 ### Add custom phases
 
@@ -326,10 +331,13 @@ claude-coordinator/
 ├── bin/
 │   └── claude-coordinator            # CLI launcher (symlinked to PATH by install.sh)
 ├── agents/
-│   ├── coordinator.md             # Coordinator agent (Agent-only control plane)
-│   ├── reader.md                  # Reader agent (fast Haiku file retriever)
+│   ├── coordinator.md             # Stable coordinator (Agent + Read + Glob + Grep)
+│   ├── coordinator-experimental.md # Experimental pure-delegation coordinator (Agent-only)
+│   ├── briefer.md                 # Context reader and situational analyst (Sonnet)
+│   ├── planner.md                 # Task breakdown and architecture planning (Sonnet)
 │   ├── worker.md                  # Worker agent (scoped implementer)
-│   └── reviewer.md               # Reviewer agent (read-only reviewer)
+│   ├── reviewer.md                # Reviewer agent (read-only reviewer)
+│   └── scribe.md                  # Lightweight state writer (Haiku)
 ├── templates/
 │   ├── docs/
 │   │   ├── context/
@@ -395,6 +403,61 @@ The agent files are designed for Claude Code's agent system. They won't work dir
 **Why does the coordinator delegate file reads instead of reading directly?**
 
 This enforces a pure delegation architecture — the coordinator is *only* a control plane. It makes decisions based on information returned by subagents, never by directly accessing the filesystem. This keeps the coordinator's context clean (it only sees what it asked for) and makes the system easier to reason about. The reader uses Haiku, which is fast and cheap, so there's minimal overhead.
+
+---
+
+## Experimental: Pure-Delegation Architecture
+
+The plugin ships two coordinator modes:
+
+- **`claude --agent coordinator`** — The stable coordinator with direct read access (`Agent + Read + Glob + Grep`). Can read files itself; delegates implementation and writes to workers.
+- **`claude --agent coordinator-experimental`** — Pure-delegation coordinator with `Agent` tool only. All I/O — reads, writes, searches — goes through specialized subagents. A strict control plane.
+
+### Six-Agent Team
+
+| Agent | Model | Tools | Role |
+|-------|-------|-------|------|
+| coordinator-experimental | Opus | Agent | Pure control plane — routes, decides, delegates |
+| briefer | Sonnet | Read, Glob, Grep | Reads context, returns structured briefings |
+| planner | Sonnet | Read, Glob, Grep, Agent | Analyzes codebase, produces task breakdowns |
+| worker | Sonnet | Full toolset | Implementation with TDD |
+| reviewer | Opus | Read, Glob, Grep | Code review with severity ratings |
+| scribe | Haiku | Read, Write | All state writes (.coord/, docs/) |
+
+### Session Flow
+
+```
+startup:   Briefer reads context → Coordinator receives briefing
+intake:    Coordinator talks to user, spawns Briefer if more context needed
+plan:      Planner produces task breakdown → Scribe writes plan
+delegate:  Workers execute in parallel (worktree-isolated)
+integrate: Scribe records results and updates task ledger
+review:    Reviewer checks risky changes
+close:     Scribe writes context packet for next session
+```
+
+### Tradeoffs
+
+**Pro:**
+- Coordinator context stays pristine — it only sees what it asked for
+- Each agent is optimized for its role and model tier
+- Clean separation of concerns: reads, writes, planning, and implementation are fully decoupled
+- Scribe (Haiku) keeps state-write costs minimal
+
+**Con:**
+- More round-trips — every read or write is an agent spawn
+- Higher total token usage than the stable coordinator
+- More complex orchestration to reason about and debug
+
+The experimental architecture shares `worker.md` and `reviewer.md` with the stable coordinator. Only the control plane and its supporting cast (briefer, planner, scribe) differ.
+
+### Usage
+
+```bash
+claude --agent coordinator-experimental
+```
+
+Or select **coordinator-experimental** from the agent picker in Claude Code.
 
 ---
 

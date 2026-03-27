@@ -11,10 +11,9 @@
 
 Claude Coordinator is a set of Claude Code agent definitions that turn Claude into a **structured project manager**. Instead of having a single Claude session try to do everything, this system uses three specialized agents that work together:
 
-- **Coordinator** — The control plane. Plans work, delegates all I/O and implementation to subagents. Has only the Agent tool — cannot read files or run commands directly.
-- **Reader** — The eyes. A fast, cheap Haiku-powered agent that reads files, searches codebases, and returns raw content. The coordinator's sole interface to the filesystem.
+- **Coordinator** — The control plane. Plans work, maintains state, delegates to workers, requests reviews, and writes context for the next session. Read-only by design — all file writes (including `.coord/` state updates and `docs/` plan files) are delegated to worker subagents.
 - **Worker** — The implementer. Receives a strict task contract and executes it. Returns structured results. Follows TDD.
-- **Reviewer** — The quality gate. Read-only code reviewer that finds bugs, regressions, missing tests, and security hazards.
+- **Reviewer** — The quality gate. Read-only code reviewer that finds bugs, regressions, missing tests, and security hazards before code is accepted.
 
 The coordinator maintains state across sessions using two mechanisms: machine-readable files in `.coord/` and human-readable files in `docs/`. This means a project can be picked up exactly where it left off, even after days away.
 
@@ -40,13 +39,9 @@ intake → plan → delegate → integrate → review → promote-learnings → 
 
 The coordinator can revisit earlier phases when new information invalidates the current plan.
 
-The coordinator delegates all file reads to a **reader** subagent and all file writes to **worker** subagents. It is a pure control plane — it never touches the filesystem directly.
-
 ---
 
-## Architecture: Four Agents, Three State Layers
-
-The coordinator is a pure control plane with only the Agent tool. It reads nothing directly — all filesystem access is handled by the reader (for reads) or workers (for writes). This keeps its context clean and its role unambiguous.
+## Architecture: Three State Layers
 
 Truth is maintained in three places, each with a different purpose:
 
@@ -301,7 +296,7 @@ model: sonnet   # Change to haiku, sonnet, or opus
 ---
 ```
 
-The defaults are `opus` for coordinator and reviewer, `sonnet` for worker, and `haiku` for reader. Using `sonnet` for the coordinator saves cost if your sessions are long.
+The defaults are `opus` for coordinator and reviewer, `sonnet` for worker. Using `sonnet` for the coordinator saves cost if your sessions are long.
 
 ### Add custom phases
 
@@ -326,8 +321,7 @@ claude-coordinator/
 ├── bin/
 │   └── claude-coordinator            # CLI launcher (symlinked to PATH by install.sh)
 ├── agents/
-│   ├── coordinator.md             # Coordinator agent (Agent-only control plane)
-│   ├── reader.md                  # Reader agent (fast Haiku file retriever)
+│   ├── coordinator.md             # Coordinator agent (read-only orchestrator)
 │   ├── worker.md                  # Worker agent (scoped implementer)
 │   └── reviewer.md               # Reviewer agent (read-only reviewer)
 ├── templates/
@@ -391,10 +385,6 @@ The coordinator is instructed to reject non-conforming output and re-delegate wi
 **Can I use this with Claude.ai (not Claude Code)?**
 
 The agent files are designed for Claude Code's agent system. They won't work directly in the claude.ai chat interface, but you can copy the system prompt content into a Project instruction or Custom System Prompt as a starting point.
-
-**Why does the coordinator delegate file reads instead of reading directly?**
-
-This enforces a pure delegation architecture — the coordinator is *only* a control plane. It makes decisions based on information returned by subagents, never by directly accessing the filesystem. This keeps the coordinator's context clean (it only sees what it asked for) and makes the system easier to reason about. The reader uses Haiku, which is fast and cheap, so there's minimal overhead.
 
 ---
 

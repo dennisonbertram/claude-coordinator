@@ -337,13 +337,15 @@ claude-coordinator/
 │   ├── planner.md                 # Task breakdown and architecture planning (Sonnet)
 │   ├── worker.md                  # Worker agent (scoped implementer)
 │   ├── reviewer.md                # Reviewer agent (read-only reviewer)
-│   └── scribe.md                  # Lightweight state writer (Haiku)
+│   ├── scribe.md                  # Lightweight state writer (Haiku)
+│   └── intent-validator.md        # Intent validation against original user request (Opus)
 ├── templates/
 │   ├── docs/
 │   │   ├── context/
 │   │   │   ├── current-intent.md
 │   │   │   ├── repo-practices.md
-│   │   │   └── known-issues.md
+│   │   │   ├── known-issues.md
+│   │   │   └── command-intent.md  # Captured user intent (written at intake, read at validate)
 │   │   └── plans/
 │   │       ├── active-plan.md
 │   │       └── execution-brief.md
@@ -400,6 +402,10 @@ The coordinator is instructed to reject non-conforming output and re-delegate wi
 
 The agent files are designed for Claude Code's agent system. They won't work directly in the claude.ai chat interface, but you can copy the system prompt content into a Project instruction or Custom System Prompt as a starting point.
 
+**Why is intent validation separate from code review?**
+
+Code review checks if the code is correct, secure, and well-tested. Intent validation checks if the code is *what the user wanted*. A perfectly implemented feature that doesn't match the user's mental model is still a failure. The intent-validator catches interpretation drift, scope gaps, and assumption mismatches that code review cannot detect.
+
 **Why does the coordinator delegate file reads instead of reading directly?**
 
 This enforces a pure delegation architecture — the coordinator is *only* a control plane. It makes decisions based on information returned by subagents, never by directly accessing the filesystem. This keeps the coordinator's context clean (it only sees what it asked for) and makes the system easier to reason about. The reader uses Haiku, which is fast and cheap, so there's minimal overhead.
@@ -413,7 +419,7 @@ The plugin ships two coordinator modes:
 - **`claude --agent coordinator`** — The stable coordinator with direct read access (`Agent + Read + Glob + Grep`). Can read files itself; delegates implementation and writes to workers.
 - **`claude --agent coordinator-experimental`** — Pure-delegation coordinator with `Agent` tool only. All I/O — reads, writes, searches — goes through specialized subagents. A strict control plane.
 
-### Six-Agent Team
+### Seven-Agent Team
 
 | Agent | Model | Tools | Role |
 |-------|-------|-------|------|
@@ -423,18 +429,36 @@ The plugin ships two coordinator modes:
 | worker | Sonnet | Full toolset | Implementation with TDD |
 | reviewer | Opus | Read, Glob, Grep | Code review with severity ratings |
 | scribe | Haiku | Read, Write | All state writes (.coord/, docs/) |
+| intent-validator | Opus | Read, Glob, Grep | Validates completed work against user's original intent. Foreground only — asks user questions. |
 
 ### Session Flow
 
 ```
 startup:   Briefer reads context → Coordinator receives briefing
-intake:    Coordinator talks to user, spawns Briefer if more context needed
+intake:    Coordinator captures command intent → Scribe writes intent doc → User confirms
 plan:      Planner produces task breakdown → Scribe writes plan
 delegate:  Workers execute in parallel (worktree-isolated)
 integrate: Scribe records results and updates task ledger
 review:    Reviewer checks risky changes
+promote:   Scribe records learnings
+validate:  Intent-validator checks: did we build what the user wanted? (foreground, can ask user)
 close:     Scribe writes context packet for next session
 ```
+
+### Command Intent Capture
+
+At intake, the coordinator writes a `docs/context/command-intent.md` capturing what the user wants — their exact words, the coordinator's interpreted intent, success criteria, the user's mental model, assumptions, and what's explicitly out of scope.
+
+The user confirms the intent document before work begins. This ensures the coordinator and the user agree on what "done" means before any tasks are delegated.
+
+At session end, the **intent-validator** compares the completed work against the original intent document. It reads the actual implementation files (not just summaries), performs a gap analysis across scope, interpretation, assumptions, UX, and completeness — and may ask the user clarifying questions directly.
+
+The validator runs in foreground and can ask the user questions. It returns one of three verdicts:
+- **SATISFIED** — Work matches intent. Proceed to close.
+- **NEEDS-WORK** — Gaps found. Return to delegate phase with specific remediation tasks.
+- **NEEDS-DISCUSSION** — Ambiguity found. Facilitate discussion, update the intent doc, then re-evaluate.
+
+This closes the gap between "task completed" and "user satisfied."
 
 ### Tradeoffs
 

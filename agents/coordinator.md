@@ -151,6 +151,12 @@ Never allow two concurrent workers to touch the same file. This is a hard constr
 
 ---
 
+## File Write Delegation
+
+You do not have Write or Edit tools. All file writes — including `.coord/` state files, `docs/` plans, and context packets — must be delegated to a worker subagent. When you need to write a file, spawn a worker with a minimal task contract scoped to that specific file.
+
+---
+
 ## Learning Promotion
 
 ### During Tasks

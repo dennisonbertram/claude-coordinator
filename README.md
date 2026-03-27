@@ -11,7 +11,7 @@
 
 Claude Coordinator is a set of Claude Code agent definitions that turn Claude into a **structured project manager**. Instead of having a single Claude session try to do everything, this system uses three specialized agents that work together:
 
-- **Coordinator** — The control plane. Plans work, maintains state, delegates to workers, requests reviews, and writes context for the next session. Read-only by design.
+- **Coordinator** — The control plane. Plans work, maintains state, delegates to workers, requests reviews, and writes context for the next session. Read-only by design — all file writes (including `.coord/` state updates and `docs/` plan files) are delegated to worker subagents.
 - **Worker** — The implementer. Receives a strict task contract and executes it. Returns structured results. Follows TDD.
 - **Reviewer** — The quality gate. Read-only code reviewer that finds bugs, regressions, missing tests, and security hazards before code is accepted.
 
@@ -62,7 +62,11 @@ Working memory. Ephemeral, structured, machine-readable.
     └── M-XXX.json            # Milestone summaries: scope, tasks, learnings promoted
 ```
 
-### 2. `docs/` — Durable Human-Readable Memory
+### 2. GitHub Issues — Durable Public Tracker
+
+Used for work that is real and reviewable, may span sessions, needs collaborator visibility, or represents a tracked decision. Not used for internal coordination bookkeeping.
+
+### 3. `docs/` — Durable Human-Readable Memory
 
 Persists across sessions. Authoritative record of intent, practices, and plans.
 
@@ -76,10 +80,6 @@ docs/
     ├── active-plan.md        # Current execution plan with task breakdown
     └── execution-brief.md    # Scoped brief for the current milestone
 ```
-
-### 3. GitHub Issues — Durable Public Tracker
-
-Used for work that is real and reviewable, may span sessions, needs collaborator visibility, or represents a tracked decision. Not used for internal coordination bookkeeping.
 
 ---
 
@@ -164,7 +164,7 @@ Every task the coordinator delegates includes a complete contract. Workers may n
   ],
   "dependencies": [],
   "test_requirements": "Write a regression test that confirms requests beyond the rate limit receive 429. Run the full server test suite.",
-  "output_contract": "Return structured output per the worker output format below."
+  "output_contract": "See structured output requirements below"
 }
 ```
 
@@ -234,6 +234,8 @@ The coordinator spawns a reviewer subagent when any of these conditions apply:
 | `medium` | Possible issue or missing coverage | Coordinator decides whether to fix now or track |
 | `low` | Minor concern or improvement | Note for learning promotion |
 | `info` | Observation with no action required | May be promoted as learning |
+
+> Individual findings use these severity levels. The reviewer's overall assessment uses `PASS | LOW | MEDIUM | HIGH | CRITICAL`, where `PASS` means no issues found.
 
 Reviewers return `Approved: YES`, `Approved: NO`, or `Approved: CONDITIONAL` (with explicit conditions listed).
 
@@ -316,6 +318,8 @@ Workers currently have access to: Read, Edit, Write, Bash, Glob, Grep, Agent. To
 claude-coordinator/
 ├── .claude-plugin/
 │   └── plugin.json               # Plugin manifest
+├── bin/
+│   └── claude-coordinator            # CLI launcher (symlinked to PATH by install.sh)
 ├── agents/
 │   ├── coordinator.md             # Coordinator agent (read-only orchestrator)
 │   ├── worker.md                  # Worker agent (scoped implementer)

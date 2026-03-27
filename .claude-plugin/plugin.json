@@ -1,0 +1,12 @@
+{
+  "name": "claude-coordinator",
+  "version": "1.0.0",
+  "description": "A structured orchestration system for Claude Code that plans, delegates, reviews, and learns. Includes coordinator, worker, and reviewer agents.",
+  "author": {
+    "name": "Dennison Bertram"
+  },
+  "homepage": "https://github.com/dennisonbertram/claude-coordinator",
+  "repository": "https://github.com/dennisonbertram/claude-coordinator",
+  "license": "MIT",
+  "keywords": ["agents", "coordination", "orchestration", "planning", "code-review", "tdd", "multi-agent"]
+}

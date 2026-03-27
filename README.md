@@ -85,7 +85,21 @@ Used for work that is real and reviewable, may span sessions, needs collaborator
 
 ## Installation
 
-### Quick install (recommended)
+### Plugin install (recommended)
+
+```bash
+claude plugin install claude-coordinator
+```
+
+Or from the repo directly:
+
+```bash
+claude --plugin-dir ./claude-coordinator
+```
+
+### Manual install (alternative)
+
+If you prefer not to use the plugin system:
 
 ```bash
 git clone https://github.com/dennisonbertram/claude-coordinator
@@ -93,32 +107,13 @@ cd claude-coordinator
 ./install.sh
 ```
 
-This copies the three agent files to `~/.claude/agents/`, making them available globally in all your Claude Code sessions.
+### Initialize project state
 
-### With project initialization
+To scaffold the `docs/` and `.coord/` directories in your project:
 
 ```bash
 ./install.sh --init-project
 ```
-
-This also creates `docs/` and `.coord/` directories in your current project with starter template files.
-
-### Manual install
-
-Copy the agent files wherever you need them:
-
-```bash
-# Global (available in all projects):
-cp agents/*.md ~/.claude/agents/
-
-# Per-project (scoped to one project):
-mkdir -p .claude/agents
-cp agents/*.md .claude/agents/
-```
-
-### Per-project install
-
-If you prefer agents scoped to a single project, copy the files into `.claude/agents/` at your project root instead of `~/.claude/agents/`.
 
 ---
 
@@ -130,7 +125,7 @@ If you prefer agents scoped to a single project, copy the files into `.claude/ag
 claude --agent coordinator
 ```
 
-Or open Claude Code and select **coordinator** from the agent picker.
+Or select **coordinator** from the agent picker in Claude Code. When installed as a plugin, the agents are automatically available.
 
 ### What happens next
 
@@ -312,29 +307,45 @@ Workers currently have access to: Read, Edit, Write, Bash, Glob, Grep, Agent. To
 
 ```
 claude-coordinator/
-├── README.md                         # This file
-├── LICENSE                           # MIT
-├── install.sh                        # One-line installer
+├── .claude-plugin/
+│   └── plugin.json               # Plugin manifest
 ├── agents/
-│   ├── coordinator.md                # Coordinator agent definition
-│   ├── worker.md                     # Worker agent definition
-│   └── reviewer.md                   # Reviewer agent definition
-└── templates/
-    ├── docs/
-    │   ├── context/
-    │   │   ├── current-intent.md     # What we're building and why
-    │   │   ├── repo-practices.md     # Conventions and rules
-    │   │   └── known-issues.md       # Known problems and workarounds
-    │   └── plans/
-    │       ├── active-plan.md        # Current execution plan
-    │       └── execution-brief.md    # Milestone brief
-    └── .coord/
-        ├── task-ledger.json          # Empty task ledger (initial state)
-        ├── learning-inbox.jsonl      # Empty learning inbox (initial state)
-        └── context-packet.md         # Context packet template
+│   ├── coordinator.md             # Coordinator agent (read-only orchestrator)
+│   ├── worker.md                  # Worker agent (scoped implementer)
+│   └── reviewer.md               # Reviewer agent (read-only reviewer)
+├── templates/
+│   ├── docs/
+│   │   ├── context/
+│   │   │   ├── current-intent.md
+│   │   │   ├── repo-practices.md
+│   │   │   └── known-issues.md
+│   │   └── plans/
+│   │       ├── active-plan.md
+│   │       └── execution-brief.md
+│   └── .coord/
+│       ├── task-ledger.json
+│       ├── learning-inbox.jsonl
+│       └── context-packet.md
+├── install.sh                     # Manual installer / project scaffolding
+├── README.md
+└── LICENSE
 ```
 
 When installed into a project with `--init-project`, the `templates/` contents are copied to your project root.
+
+---
+
+## Plugin Development
+
+### Testing locally
+
+```bash
+claude --plugin-dir /path/to/claude-coordinator
+```
+
+### Publishing
+
+This plugin can be distributed via Claude Code marketplaces. See the [Claude Code plugin docs](https://docs.anthropic.com/en/docs/claude-code) for marketplace setup.
 
 ---
 

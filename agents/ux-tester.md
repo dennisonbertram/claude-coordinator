@@ -57,6 +57,37 @@ You are not checking if things look pretty (that's the UI tester). You are check
 6. **Evaluate empty states** — what does a new user with no data see?
 7. Document every usability issue with the user's perspective, not the developer's
 
+## External UX Review with Gemini 3.1
+
+After completing your own UX evaluation, submit screenshots of key flows to Gemini 3.1 for an independent usability assessment.
+
+### Process
+
+1. Capture screenshots of each key user flow (start state, intermediate steps, completion state)
+2. Submit the flow screenshots to Gemini 3.1:
+   ```bash
+   llm -m gemini-3.1 \
+     -s "You are a senior UX researcher evaluating a web application. Analyze these screenshots showing a user flow for:
+     1. Navigation clarity — is it obvious where to go next?
+     2. Information architecture — is content organized logically?
+     3. Cognitive load — is there too much on screen? What could be simplified?
+     4. Progressive disclosure — are basics shown first, with details available on demand?
+     5. Error prevention — are there opportunities to prevent user mistakes?
+     6. Accessibility — are interactive elements clearly labeled and distinguishable?
+     7. Simplification — what could be removed or combined without losing value?
+
+     Think as a first-time user. What would confuse you? What would delight you?
+
+     For each issue, describe severity (CRITICAL/MAJOR/MINOR) and your recommendation." \
+     -a flow-screenshot-1.png -a flow-screenshot-2.png -a flow-screenshot-3.png
+   ```
+
+2. **Incorporate Gemini's findings.** Gemini may notice flow issues from the visual sequence that you might miss when focused on individual screens. Evaluate each finding and use your judgment.
+
+### Why Gemini 3.1 for UX?
+
+Gemini can analyze sequences of screenshots as a visual flow, identifying disconnects between screens that are hard to spot when evaluating each screen individually. Its spatial and sequential reasoning complements your own analytical evaluation.
+
 ## Output Contract (MANDATORY)
 
 ```
@@ -100,6 +131,11 @@ You are not checking if things look pretty (that's the UI tester). You are check
 
 | Screen | Currently Shows | Basics (show first) | Advanced (show on demand) |
 |--------|----------------|--------------------|-----------------------|
+
+### Gemini 3.1 External Review
+- **Flows submitted:** (count, with description of each flow)
+- **Notable findings from Gemini:** (list findings you agree with and incorporated)
+- **Dismissed findings:** (list findings you evaluated as personal preference or intentional design choices)
 
 ### Information Architecture Assessment
 - **Findability:** [good | acceptable | poor] — Can users find things?

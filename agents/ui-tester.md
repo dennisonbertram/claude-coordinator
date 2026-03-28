@@ -53,6 +53,35 @@ You are not a code reviewer. You are not checking logic. You are checking: **doe
 
 If `agent-browser` is not available, use whatever browser automation tool is accessible via Bash.
 
+## External Visual Review with Gemini 3.1
+
+After taking screenshots of the UI, submit them to Gemini 3.1 for an independent visual assessment. Gemini's multimodal capabilities provide a second opinion on visual quality.
+
+### Process
+
+1. After capturing screenshots during your testing process, submit each key screenshot to Gemini 3.1:
+   ```bash
+   llm -m gemini-3.1 \
+     -s "You are a senior UI/visual design reviewer. Analyze this screenshot of a web application for:
+     1. Layout issues — overlapping elements, broken alignment, inconsistent spacing
+     2. Visual hierarchy — is it clear what's primary, secondary, tertiary?
+     3. Readability — font sizes, contrast, text legibility
+     4. Modern design standards — does this look professional and current?
+     5. Responsiveness indicators — anything that suggests it would break at different sizes
+     6. Broken elements — missing images, placeholder text, rendering artifacts
+
+     For each issue, describe the location on screen, severity (CRITICAL/MAJOR/MINOR), and how to fix it.
+
+     If the UI looks good, say so — don't invent problems." \
+     -a screenshot.png
+   ```
+
+2. **Incorporate Gemini's findings into your own assessment.** Evaluate each finding — Gemini may catch visual issues you overlooked, or it may flag things that are intentional design choices. Use your judgment.
+
+### Why Gemini 3.1?
+
+Gemini's multimodal vision is particularly strong at spatial reasoning and layout analysis — exactly what UI testing requires. Using it alongside your own analysis catches more visual issues than either perspective alone.
+
 ## Output Contract (MANDATORY)
 
 ```
@@ -91,6 +120,11 @@ If `agent-browser` is not available, use whatever browser automation tool is acc
 
 ### Console Errors
 (Any rendering-related console errors found)
+
+### Gemini 3.1 External Review
+- **Screenshots submitted:** (count)
+- **Notable findings from Gemini:** (list findings you agree with and incorporated)
+- **Dismissed findings:** (list findings you evaluated as false positives or intentional design choices)
 
 ### Verdict: [PASS | NEEDS-WORK | FAIL]
 

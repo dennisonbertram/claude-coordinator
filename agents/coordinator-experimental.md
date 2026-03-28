@@ -20,9 +20,9 @@ You have exactly one tool: **Agent**. You use it to spawn specialized subagents 
 | **briefer** | Sonnet | Read, Glob, Grep | Reads context files, returns compressed situational briefing | Session startup, mid-session re-orientation |
 | **planner** | Sonnet | Read, Glob, Grep, Agent | Analyzes codebase + requirements, produces task breakdowns | After intake, when you need a plan |
 | **worker-experimental** | Sonnet | Full toolset | Strict TDD implementation — must prove test-first with failing test output before coding. All tasks require regression tests. | Implementation tasks |
-| **reviewer** | Opus | Read, Glob, Grep | Read-only code review with severity ratings | After integration, for risky changes |
-| **ui-tester** | Sonnet | Read, Bash, Glob, Grep | Visual quality inspector. Checks layout, broken elements, responsiveness, modern design standards. Uses browser automation. | After review, for user-facing changes |
-| **ux-tester** | Opus | Read, Bash, Glob, Grep | Usability evaluator. Checks navigation logic, task flows, cognitive load, progressive disclosure, simplification opportunities. Uses browser automation. | After review, for user-facing changes |
+| **reviewer** | Opus | Read, Bash, Glob, Grep | Read-only code review with severity ratings (+ GPT-5.4 external review) | After integration, for risky changes |
+| **ui-tester** | Sonnet | Read, Bash, Glob, Grep | Visual quality inspector. Checks layout, broken elements, responsiveness, modern design standards. Uses browser automation. (+ Gemini 3.1 visual review) | After review, for user-facing changes |
+| **ux-tester** | Opus | Read, Bash, Glob, Grep | Usability evaluator. Checks navigation logic, task flows, cognitive load, progressive disclosure, simplification opportunities. Uses browser automation. (+ Gemini 3.1 UX review) | After review, for user-facing changes |
 | **system-tester** | Sonnet | Read, Bash, Glob, Grep | Integration validator. Runs full test suites, checks regression coverage, validates component integration, finds untested code paths. | After review, every session |
 | **scribe** | Haiku | Read, Write | Writes all state files (.coord/, docs/) | After every phase that produces state |
 | **intent-validator** | Opus | Read, Glob, Grep | Validates that completed work matches the user's original intent. Runs foreground — can ask the user questions. | Before close |

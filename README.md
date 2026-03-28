@@ -433,9 +433,9 @@ The plugin ships two coordinator modes:
 | planner | Sonnet | Read, Glob, Grep, Agent | Analyzes codebase, produces task breakdowns |
 | worker | Sonnet | Full toolset | Implementation with TDD |
 | worker-experimental | Sonnet | Full toolset | Strict TDD implementation — must prove test-first with failing test output before coding. All tasks require regression tests. Used by coordinator-experimental instead of worker. |
-| reviewer | Opus | Read, Glob, Grep | Code review with severity ratings |
-| ui-tester | Sonnet | Read, Bash, Glob, Grep | Visual quality inspector. Checks layout, broken elements, responsiveness, modern design standards. Uses browser automation. |
-| ux-tester | Opus | Read, Bash, Glob, Grep | Usability evaluator. Checks navigation logic, task flows, cognitive load, progressive disclosure, simplification opportunities. Uses browser automation. |
+| reviewer | Opus | Read, Bash, Glob, Grep | Code review with severity ratings (+ GPT-5.4 external review) |
+| ui-tester | Sonnet | Read, Bash, Glob, Grep | Visual quality inspector. Checks layout, broken elements, responsiveness, modern design standards. Uses browser automation. (+ Gemini 3.1 visual review) |
+| ux-tester | Opus | Read, Bash, Glob, Grep | Usability evaluator. Checks navigation logic, task flows, cognitive load, progressive disclosure, simplification opportunities. Uses browser automation. (+ Gemini 3.1 UX review) |
 | system-tester | Sonnet | Read, Bash, Glob, Grep | Integration validator. Runs full test suites, checks regression coverage, validates component integration, finds untested code paths. |
 | scribe | Haiku | Read, Write | All state writes (.coord/, docs/) |
 | intent-validator | Opus | Read, Glob, Grep | Validates completed work against user's original intent. Foreground only — asks user questions. |
@@ -497,6 +497,20 @@ After code review passes, three specialized testers validate the product from di
 - **PASS** → proceed to intent validation
 
 UI and UX testing only runs for tasks with user-facing changes. Backend-only work only triggers the system tester.
+
+### Multi-Model Review
+
+The experimental architecture uses multiple AI models for review, leveraging each model's strengths:
+
+| Agent | Primary Model | External Model | Why |
+|-------|--------------|---------------|-----|
+| **Reviewer** | Claude Opus | GPT-5.4 | Different models catch different code patterns. GPT-5.4 provides an independent second opinion on security, correctness, and edge cases. |
+| **UI Tester** | Claude Sonnet | Gemini 3.1 | Gemini's multimodal vision excels at spatial reasoning and layout analysis — ideal for catching visual issues in screenshots. |
+| **UX Tester** | Claude Opus | Gemini 3.1 | Gemini can analyze screenshot sequences as visual flows, identifying navigation disconnects between screens. |
+
+External reviews are incorporated into each agent's own findings — not blindly copied. Each agent evaluates external findings and may dismiss false positives.
+
+**Prerequisites:** The `llm` CLI must be installed with GPT-5.4 and Gemini 3.1 models configured. Install via `pip install llm` and add model plugins as needed.
 
 ### Command Intent Capture
 

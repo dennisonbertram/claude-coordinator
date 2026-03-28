@@ -336,6 +336,7 @@ claude-coordinator/
 │   ├── briefer.md                 # Context reader and situational analyst (Sonnet)
 │   ├── planner.md                 # Task breakdown and architecture planning (Sonnet)
 │   ├── worker.md                  # Worker agent (scoped implementer)
+│   ├── worker-experimental.md     # Strict TDD worker — proves test-first with failing output
 │   ├── reviewer.md                # Reviewer agent (read-only reviewer)
 │   ├── scribe.md                  # Lightweight state writer (Haiku)
 │   └── intent-validator.md        # Intent validation against original user request (Opus)
@@ -348,7 +349,8 @@ claude-coordinator/
 │   │   │   └── command-intent.md  # Captured user intent (written at intake, read at validate)
 │   │   └── plans/
 │   │       ├── active-plan.md
-│   │       └── execution-brief.md
+│   │       ├── execution-brief.md
+│   │       └── test-spec.md       # Behavioral test specification template
 │   └── .coord/
 │       ├── task-ledger.json
 │       ├── learning-inbox.jsonl
@@ -427,6 +429,7 @@ The plugin ships two coordinator modes:
 | briefer | Sonnet | Read, Glob, Grep | Reads context, returns structured briefings |
 | planner | Sonnet | Read, Glob, Grep, Agent | Analyzes codebase, produces task breakdowns |
 | worker | Sonnet | Full toolset | Implementation with TDD |
+| worker-experimental | Sonnet | Full toolset | Strict TDD implementation — must prove test-first with failing test output before coding. All tasks require regression tests. Used by coordinator-experimental instead of worker. |
 | reviewer | Opus | Read, Glob, Grep | Code review with severity ratings |
 | scribe | Haiku | Read, Write | All state writes (.coord/, docs/) |
 | intent-validator | Opus | Read, Glob, Grep | Validates completed work against user's original intent. Foreground only — asks user questions. |
@@ -444,6 +447,28 @@ promote:   Scribe records learnings
 validate:  Intent-validator checks: did we build what the user wanted? (foreground, can ask user)
 close:     Scribe writes context packet for next session
 ```
+
+### Behavioral Testing & Strict TDD
+
+The experimental architecture enforces a rigorous testing discipline:
+
+**Planner produces behavioral test specs** — not "write tests for X" but specific, user-observable behaviors expressed as testable assertions:
+- "When a client exceeds 100 requests in 60 seconds, the next request receives HTTP 429"
+- "Given a user with no saved addresses, the checkout page shows an 'Add address' prompt"
+
+**Worker must prove TDD** — the `worker-experimental` agent is required to:
+1. Write all behavioral tests FIRST
+2. Run them and record the FAILING output (proof of test-first)
+3. Implement the minimum code to pass
+4. Run tests again and record PASSING output
+5. Write regression tests for every task type
+6. Include all evidence in the structured report
+
+Worker output that lacks TDD evidence (failing test output before implementation) is **rejected and re-delegated**.
+
+**Regression tests for all task types** — not just bugfixes. Features, refactors, and every other task type must include regression tests that answer: "If this work breaks in the future, what test catches it?"
+
+**All tests must be meaningful** — no `expect(true).toBe(true)`, no tests that can't fail, no testing implementation details instead of behavior.
 
 ### Command Intent Capture
 

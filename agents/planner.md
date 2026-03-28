@@ -41,12 +41,26 @@ Return your plan in EXACTLY this format:
 - **Allowed files:** (List of files/directories)
 - **Forbidden files:** (Files that must not be touched)
 - **Dependencies:** (Task IDs that must complete first, or "none")
-- **Test requirements:** (What tests to write/run)
+- **Behavioral tests:** (List of specific user-observable behaviors this task must exhibit, written as testable assertions. NOT implementation details — describe what the user/system sees.)
+  - "When [condition], then [observable result]"
+  - "Given [state], when [action], then [outcome]"
+- **Regression tests:** (What regression test(s) must exist so that if this task's work breaks in the future, the test catches it. Every task type — feature, bugfix, refactor — requires at least one regression test.)
 - **Estimated complexity:** low | medium | high
 - **Risk level:** low | medium | high
 
 #### TASK-002: [Title]
 (Same format)
+
+### Behavioral Test Specification
+
+A milestone-level specification of the behaviors this plan must deliver, independent of implementation details. Each behavior is a testable assertion from the user's or system's perspective.
+
+| ID | Behavior | Condition | Expected Outcome | Covered by Task |
+|----|----------|-----------|-----------------|-----------------|
+| BT-001 | (description) | When (condition) | Then (result) | TASK-XXX |
+| BT-002 | (description) | Given (state), when (action) | Then (outcome) | TASK-XXX |
+
+Every behavior in this table MUST have a corresponding test in at least one task. If a behavior cannot be mapped to a task, the plan is incomplete.
 
 ### Dependency Graph
 (Which tasks can run in parallel, which must be sequential)
@@ -83,3 +97,6 @@ Before producing a plan:
 - **Be conservative with parallelization.** When in doubt, make tasks sequential.
 - **Include test requirements in every task.** No task is complete without tests.
 - **Flag unknowns.** If you can't determine the right approach from the codebase, say so. Don't guess.
+- **Every task must have behavioral tests.** If you can't describe the task's expected behavior as testable assertions, the task is underspecified. Go back and clarify.
+- **Regression tests are mandatory for all task types.** Features, bugfixes, refactors — everything. The question is always: "If this work breaks in the future, what test catches it?"
+- **Tests must be meaningful.** A test that cannot fail is not a test. A test that tests implementation details instead of behavior is brittle. Describe behaviors, not internals.

@@ -62,7 +62,7 @@ if [ ! -d "$AGENTS_DIR" ]; then
 fi
 
 # Copy agent files (idempotent — overwrites existing)
-for agent in coordinator coordinator-experimental briefer planner worker reviewer scribe intent-validator; do
+for agent in coordinator coordinator-experimental briefer planner worker worker-experimental reviewer scribe intent-validator; do
   src="$SCRIPT_DIR/agents/${agent}.md"
   dst="$AGENTS_DIR/${agent}.md"
   if [ ! -f "$src" ]; then

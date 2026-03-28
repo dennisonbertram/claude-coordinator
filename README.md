@@ -296,7 +296,12 @@ model: sonnet   # Change to haiku, sonnet, or opus
 ---
 ```
 
-The defaults are `opus` for coordinator and reviewer, `sonnet` for worker. Using `sonnet` for the coordinator saves cost if your sessions are long.
+The defaults are:
+- `opus` — coordinator, coordinator-experimental, reviewer
+- `sonnet` — worker, briefer, planner
+- `haiku` — scribe
+
+Using `sonnet` for the coordinator or coordinator-experimental saves cost if your sessions are long.
 
 ### Add custom phases
 
@@ -321,18 +326,29 @@ claude-coordinator/
 ├── bin/
 │   └── claude-coordinator            # CLI launcher (symlinked to PATH by install.sh)
 ├── agents/
-│   ├── coordinator.md             # Coordinator agent (read-only orchestrator)
+│   ├── coordinator.md             # Stable coordinator (Agent + Read + Glob + Grep)
+│   ├── coordinator-experimental.md # Experimental pure-delegation coordinator (Agent-only)
+│   ├── briefer.md                 # Context reader and situational analyst (Sonnet)
+│   ├── planner.md                 # Task breakdown and architecture planning (Sonnet)
 │   ├── worker.md                  # Worker agent (scoped implementer)
-│   └── reviewer.md               # Reviewer agent (read-only reviewer)
+│   ├── worker-experimental.md     # Strict TDD worker — proves test-first with failing output
+│   ├── reviewer.md                # Reviewer agent (read-only reviewer)
+│   ├── ui-tester.md               # Visual quality inspector with browser automation (Sonnet)
+│   ├── ux-tester.md               # Usability evaluator with browser automation (Opus)
+│   ├── system-tester.md           # Integration and coverage validator (Sonnet)
+│   ├── scribe.md                  # Lightweight state writer (Haiku)
+│   └── intent-validator.md        # Intent validation against original user request (Opus)
 ├── templates/
 │   ├── docs/
 │   │   ├── context/
 │   │   │   ├── current-intent.md
 │   │   │   ├── repo-practices.md
-│   │   │   └── known-issues.md
+│   │   │   ├── known-issues.md
+│   │   │   └── command-intent.md  # Captured user intent (written at intake, read at validate)
 │   │   └── plans/
 │   │       ├── active-plan.md
-│   │       └── execution-brief.md
+│   │       ├── execution-brief.md
+│   │       └── test-spec.md       # Behavioral test specification template
 │   └── .coord/
 │       ├── task-ledger.json
 │       ├── learning-inbox.jsonl
@@ -385,6 +401,150 @@ The coordinator is instructed to reject non-conforming output and re-delegate wi
 **Can I use this with Claude.ai (not Claude Code)?**
 
 The agent files are designed for Claude Code's agent system. They won't work directly in the claude.ai chat interface, but you can copy the system prompt content into a Project instruction or Custom System Prompt as a starting point.
+
+**Why is intent validation separate from code review?**
+
+Code review checks if the code is correct, secure, and well-tested. Intent validation checks if the code is *what the user wanted*. A perfectly implemented feature that doesn't match the user's mental model is still a failure. The intent-validator catches interpretation drift, scope gaps, and assumption mismatches that code review cannot detect.
+
+**Why does the coordinator delegate file reads instead of reading directly?**
+
+This enforces a pure delegation architecture — the coordinator is *only* a control plane. It makes decisions based on information returned by subagents, never by directly accessing the filesystem. This keeps the coordinator's context clean (it only sees what it asked for) and makes the system easier to reason about. The reader uses Haiku, which is fast and cheap, so there's minimal overhead.
+
+
+---
+
+## Experimental: Pure-Delegation Architecture
+
+The plugin ships two coordinator modes:
+
+- **`claude --agent coordinator`** — The stable coordinator with direct read access (`Agent + Read + Glob + Grep`). Can read files itself; delegates implementation and writes to workers.
+- **`claude --agent coordinator-experimental`** — Pure-delegation coordinator with `Agent` tool only. All I/O — reads, writes, searches — goes through specialized subagents. A strict control plane.
+
+### Ten-Agent Team
+
+| Agent | Model | Tools | Role |
+|-------|-------|-------|------|
+| coordinator-experimental | Opus | Agent | Pure control plane — routes, decides, delegates |
+| briefer | Sonnet | Read, Glob, Grep | Reads context, returns structured briefings |
+| planner | Sonnet | Read, Glob, Grep, Agent | Analyzes codebase, produces task breakdowns |
+| worker | Sonnet | Full toolset | Implementation with TDD |
+| worker-experimental | Sonnet | Full toolset | Strict TDD implementation — must prove test-first with failing test output before coding. All tasks require regression tests. Used by coordinator-experimental instead of worker. |
+| reviewer | Opus | Read, Bash, Glob, Grep | Code review with severity ratings (+ GPT-5.4 external review) |
+| ui-tester | Sonnet | Read, Bash, Glob, Grep | Visual quality inspector. Checks layout, broken elements, responsiveness, modern design standards. Uses browser automation. (+ Gemini 3.1 visual review) |
+| ux-tester | Opus | Read, Bash, Glob, Grep | Usability evaluator. Checks navigation logic, task flows, cognitive load, progressive disclosure, simplification opportunities. Uses browser automation. (+ Gemini 3.1 UX review) |
+| system-tester | Sonnet | Read, Bash, Glob, Grep | Integration validator. Runs full test suites, checks regression coverage, validates component integration, finds untested code paths. |
+| scribe | Haiku | Read, Write | All state writes (.coord/, docs/) |
+| intent-validator | Opus | Read, Glob, Grep | Validates completed work against user's original intent. Foreground only — asks user questions. |
+
+### Session Flow
+
+```
+startup:   Briefer reads context → Coordinator receives briefing
+intake:    Coordinator captures command intent → Scribe writes intent doc → User confirms
+plan:      Planner produces task breakdown → Scribe writes plan
+delegate:  Workers execute in parallel (worktree-isolated, strict TDD)
+integrate: Validate worker output, check TDD evidence
+review:    Reviewer checks code quality
+test:      UI tester + UX tester + System tester validate the product
+promote:   Scribe records learnings
+validate:  Intent-validator confirms work matches user's intent
+close:     Scribe writes context packet for next session
+```
+
+### Behavioral Testing & Strict TDD
+
+The experimental architecture enforces a rigorous testing discipline:
+
+**Planner produces behavioral test specs** — not "write tests for X" but specific, user-observable behaviors expressed as testable assertions:
+- "When a client exceeds 100 requests in 60 seconds, the next request receives HTTP 429"
+- "Given a user with no saved addresses, the checkout page shows an 'Add address' prompt"
+
+**Worker must prove TDD** — the `worker-experimental` agent is required to:
+1. Write all behavioral tests FIRST
+2. Run them and record the FAILING output (proof of test-first)
+3. Implement the minimum code to pass
+4. Run tests again and record PASSING output
+5. Write regression tests for every task type
+6. Include all evidence in the structured report
+
+Worker output that lacks TDD evidence (failing test output before implementation) is **rejected and re-delegated**.
+
+**Regression tests for all task types** — not just bugfixes. Features, refactors, and every other task type must include regression tests that answer: "If this work breaks in the future, what test catches it?"
+
+**All tests must be meaningful** — no `expect(true).toBe(true)`, no tests that can't fail, no testing implementation details instead of behavior.
+
+### Three-Layer Testing
+
+After code review passes, three specialized testers validate the product from different angles:
+
+| Tester | Question | Method |
+|--------|----------|--------|
+| **UI Tester** | Does it look right? | Launches browser, takes screenshots, checks layout/spacing/responsive design, looks for overlapping elements and visual broken-ness |
+| **UX Tester** | Does it make sense? | Uses the app as a first-time user, evaluates navigation logic, identifies simplification opportunities, checks progressive disclosure |
+| **System Tester** | Does it all work? | Runs full test suites, checks regression coverage, validates integration points, finds untested code paths |
+
+**UI + UX testers use browser automation** (`agent-browser` CLI) to interact with the real running app. They evaluate what the user actually sees and experiences, not what the code claims to do.
+
+**System tester runs real tests** — executes the full suite, captures output, cross-references against the behavioral test spec from the planner.
+
+**Testing only blocks on real issues:**
+- **FAIL** → back to delegate phase for fixes
+- **NEEDS-WORK** → coordinator decides: fix now or track for later
+- **PASS** → proceed to intent validation
+
+UI and UX testing only runs for tasks with user-facing changes. Backend-only work only triggers the system tester.
+
+### Multi-Model Review
+
+The experimental architecture uses multiple AI models for review, leveraging each model's strengths:
+
+| Agent | Primary Model | External Model | Why |
+|-------|--------------|---------------|-----|
+| **Reviewer** | Claude Opus | GPT-5.4 | Different models catch different code patterns. GPT-5.4 provides an independent second opinion on security, correctness, and edge cases. |
+| **UI Tester** | Claude Sonnet | Gemini 3.1 | Gemini's multimodal vision excels at spatial reasoning and layout analysis — ideal for catching visual issues in screenshots. |
+| **UX Tester** | Claude Opus | Gemini 3.1 | Gemini can analyze screenshot sequences as visual flows, identifying navigation disconnects between screens. |
+
+External reviews are incorporated into each agent's own findings — not blindly copied. Each agent evaluates external findings and may dismiss false positives.
+
+**Prerequisites:** The `llm` CLI must be installed with GPT-5.4 and Gemini 3.1 models configured. Install via `pip install llm` and add model plugins as needed.
+
+### Command Intent Capture
+
+At intake, the coordinator writes a `docs/context/command-intent.md` capturing what the user wants — their exact words, the coordinator's interpreted intent, success criteria, the user's mental model, assumptions, and what's explicitly out of scope.
+
+The user confirms the intent document before work begins. This ensures the coordinator and the user agree on what "done" means before any tasks are delegated.
+
+At session end, the **intent-validator** compares the completed work against the original intent document. It reads the actual implementation files (not just summaries), performs a gap analysis across scope, interpretation, assumptions, UX, and completeness — and may ask the user clarifying questions directly.
+
+The validator runs in foreground and can ask the user questions. It returns one of three verdicts:
+- **SATISFIED** — Work matches intent. Proceed to close.
+- **NEEDS-WORK** — Gaps found. Return to delegate phase with specific remediation tasks.
+- **NEEDS-DISCUSSION** — Ambiguity found. Facilitate discussion, update the intent doc, then re-evaluate.
+
+This closes the gap between "task completed" and "user satisfied."
+
+### Tradeoffs
+
+**Pro:**
+- Coordinator context stays pristine — it only sees what it asked for
+- Each agent is optimized for its role and model tier
+- Clean separation of concerns: reads, writes, planning, and implementation are fully decoupled
+- Scribe (Haiku) keeps state-write costs minimal
+
+**Con:**
+- More round-trips — every read or write is an agent spawn
+- Higher total token usage than the stable coordinator
+- More complex orchestration to reason about and debug
+
+The experimental architecture shares `worker.md` and `reviewer.md` with the stable coordinator. Only the control plane and its supporting cast (briefer, planner, scribe) differ.
+
+### Usage
+
+```bash
+claude --agent coordinator-experimental
+```
+
+Or select **coordinator-experimental** from the agent picker in Claude Code.
 
 ---
 

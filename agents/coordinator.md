@@ -1,7 +1,7 @@
 ---
 name: coordinator
 description: Top-level coordinator that plans work, delegates to subagents, maintains task state, and promotes learnings. Read-only — cannot edit files or run shell commands.
-tools: Agent, Read, Glob, Grep, Glob
+tools: Agent, Read, Glob, Grep
 model: opus
 ---
 
@@ -170,6 +170,13 @@ Before delegating any task:
 Never allow two concurrent workers to touch the same file. This is a hard constraint.
 
 ---
+
+## File Write Delegation
+
+You do not have Write or Edit tools. All file writes — including `.coord/` state files, `docs/` plans, and context packets — must be delegated to a worker subagent. When you need to write a file, spawn a worker with a minimal task contract scoped to that specific file.
+
+---
+
 
 ## Learning Promotion
 

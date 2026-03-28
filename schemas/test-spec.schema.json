@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Behavioral Test Specification",
+  "description": "Milestone-level behavioral test spec",
+  "type": "object",
+  "required": ["milestone", "behaviors", "regression_coverage"],
+  "properties": {
+    "milestone": { "type": "string" },
+    "behaviors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "behavior", "condition", "expected_outcome", "covered_by_task"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^BT-[0-9]{3}$" },
+          "behavior": { "type": "string" },
+          "condition": { "type": "string" },
+          "expected_outcome": { "type": "string" },
+          "covered_by_task": { "type": "string", "pattern": "^TASK-[0-9]{3}$" },
+          "status": { "type": "string", "enum": ["pending", "tested", "failed"] }
+        }
+      }
+    },
+    "regression_coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["task_id", "regression_test", "catches"],
+        "properties": {
+          "task_id": { "type": "string", "pattern": "^TASK-[0-9]{3}$" },
+          "regression_test": { "type": "string" },
+          "catches": { "type": "string" }
+        }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Command Intent",
+  "description": "Captured user intent at session intake — the contract between coordinator and user",
+  "type": "object",
+  "required": ["user_request", "interpreted_intent", "success_criteria"],
+  "properties": {
+    "user_request": { "type": "string", "minLength": 1, "description": "Exact words the user used" },
+    "interpreted_intent": { "type": "string", "minLength": 1, "description": "Coordinator's understanding of what the user means" },
+    "success_criteria": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Observable criteria for done"
+    },
+    "user_mental_model": { "type": "string", "description": "How the user expects this to work from their perspective" },
+    "assumptions": { "type": "array", "items": { "type": "string" }, "description": "Things assumed but not confirmed" },
+    "out_of_scope": { "type": "array", "items": { "type": "string" }, "description": "Explicitly excluded" },
+    "confirmed_by_user": { "type": "boolean", "default": false },
+    "confirmed_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

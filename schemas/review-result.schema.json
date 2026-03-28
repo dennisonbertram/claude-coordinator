@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Review Result",
+  "description": "Normalized review artifact from a reviewer",
+  "type": "object",
+  "required": ["review_id", "task_id", "summary", "overall_severity", "findings", "approved", "timestamp"],
+  "properties": {
+    "review_id": { "type": "string", "pattern": "^REVIEW-[0-9]{3}$" },
+    "task_id": { "type": "string", "pattern": "^TASK-[0-9]{3}$" },
+    "summary": { "type": "string", "minLength": 1 },
+    "overall_severity": { "type": "string", "enum": ["PASS", "LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "title", "file", "issue", "impact", "suggestion"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "info"] },
+          "title": { "type": "string" },
+          "file": { "type": "string" },
+          "issue": { "type": "string" },
+          "impact": { "type": "string" },
+          "suggestion": { "type": "string" }
+        }
+      }
+    },
+    "external_review": {
+      "type": "object",
+      "properties": {
+        "model": { "type": "string" },
+        "verdict": { "type": "string", "enum": ["APPROVED", "NOT_APPROVED"] },
+        "critical_count": { "type": "integer", "minimum": 0 },
+        "high_count": { "type": "integer", "minimum": 0 },
+        "notable_findings": { "type": "array", "items": { "type": "string" } },
+        "dismissed_findings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "missing_test_coverage": { "type": "array", "items": { "type": "string" } },
+    "approved": { "type": "string", "enum": ["YES", "NO", "CONDITIONAL"] },
+    "conditions": { "type": "array", "items": { "type": "string" } },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

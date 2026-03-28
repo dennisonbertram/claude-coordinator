@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Current Intent",
+  "description": "What we are building and why — durable project-level intent",
+  "type": "object",
+  "required": ["what", "why"],
+  "properties": {
+    "what": { "type": "string", "minLength": 1, "description": "What we're building" },
+    "why": { "type": "string", "minLength": 1, "description": "Motivation and context" },
+    "success_criteria": { "type": "array", "items": { "type": "string" } },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

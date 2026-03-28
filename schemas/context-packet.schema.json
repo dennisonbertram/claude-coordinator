@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Context Packet",
+  "description": "Compressed session context for continuity between sessions",
+  "type": "object",
+  "required": ["session_date", "current_state", "milestone"],
+  "properties": {
+    "session_date": { "type": "string", "format": "date-time" },
+    "milestone": {
+      "type": "object",
+      "required": ["name", "progress"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "progress": { "type": "string", "enum": ["not-started", "in-progress", "blocked", "complete"] }
+      }
+    },
+    "current_state": { "type": "string", "minLength": 1 },
+    "key_decisions": { "type": "array", "items": { "type": "string" } },
+    "open_blockers": { "type": "array", "items": { "type": "string" } },
+    "pending_tasks": { "type": "array", "items": { "type": "string", "pattern": "^TASK-[0-9]{3}$" } },
+    "next_session_notes": { "type": "string" }
+  },
+  "additionalProperties": false
+}

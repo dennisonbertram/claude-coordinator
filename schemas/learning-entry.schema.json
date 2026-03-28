@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Learning Entry",
+  "description": "Single JSONL line in the learning inbox",
+  "type": "object",
+  "required": ["task_id", "learning", "category", "timestamp"],
+  "properties": {
+    "task_id": { "type": "string", "pattern": "^TASK-[0-9]{3}$" },
+    "learning": { "type": "string", "minLength": 1 },
+    "category": { "type": "string", "enum": ["practice", "issue", "pattern", "decision"] },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "promoted": { "type": "boolean", "default": false },
+    "promoted_to": { "type": "string" }
+  },
+  "additionalProperties": false
+}

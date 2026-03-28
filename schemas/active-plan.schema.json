@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Active Plan",
+  "description": "Current execution plan with task breakdown and behavioral test spec",
+  "type": "object",
+  "required": ["milestone", "tasks", "behavioral_test_spec"],
+  "properties": {
+    "milestone": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "approach": { "type": "string" },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "type", "scope", "status", "dependencies"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^TASK-[0-9]{3}$" },
+          "title": { "type": "string" },
+          "type": { "type": "string", "enum": ["feature", "bugfix", "refactor", "test", "investigation", "review"] },
+          "scope": { "type": "string" },
+          "status": { "type": "string", "enum": ["pending", "in-flight", "blocked", "done", "failed"] },
+          "allowed_files": { "type": "array", "items": { "type": "string" } },
+          "forbidden_files": { "type": "array", "items": { "type": "string" } },
+          "dependencies": { "type": "array", "items": { "type": "string" } },
+          "behavioral_tests": { "type": "array", "items": { "type": "string" } },
+          "regression_test_requirements": { "type": "string" },
+          "complexity": { "type": "string", "enum": ["low", "medium", "high"] },
+          "risk": { "type": "string", "enum": ["low", "medium", "high"] }
+        }
+      }
+    },
+    "behavioral_test_spec": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "behavior", "condition", "expected_outcome", "covered_by_task"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^BT-[0-9]{3}$" },
+          "behavior": { "type": "string" },
+          "condition": { "type": "string" },
+          "expected_outcome": { "type": "string" },
+          "covered_by_task": { "type": "string", "pattern": "^TASK-[0-9]{3}$" }
+        }
+      }
+    },
+    "dependency_graph": {
+      "type": "object",
+      "properties": {
+        "waves": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["wave_number", "tasks"],
+            "properties": {
+              "wave_number": { "type": "integer", "minimum": 1 },
+              "tasks": { "type": "array", "items": { "type": "string", "pattern": "^TASK-[0-9]{3}$" } },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "review_triggers": { "type": "array", "items": { "type": "string" } },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

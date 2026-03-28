@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Repository Practices",
+  "description": "Durable conventions, patterns, and rules for the codebase",
+  "type": "object",
+  "required": ["conventions", "patterns", "rules"],
+  "properties": {
+    "conventions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "description"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "examples": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "description"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "files": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule", "severity"],
+        "properties": {
+          "rule": { "type": "string" },
+          "severity": { "type": "string", "enum": ["must", "should", "prefer"] },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

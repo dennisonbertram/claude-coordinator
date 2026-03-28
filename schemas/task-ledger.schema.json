@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Task Ledger",
+  "description": "All tasks and their statuses for the current session",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "title", "type", "status", "created_at"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^TASK-[0-9]{3}$" },
+      "title": { "type": "string", "minLength": 1 },
+      "type": { "type": "string", "enum": ["feature", "bugfix", "refactor", "test", "investigation", "review"] },
+      "status": { "type": "string", "enum": ["pending", "in-flight", "blocked", "done", "failed"] },
+      "scope": { "type": "string" },
+      "allowed_files": { "type": "array", "items": { "type": "string" } },
+      "forbidden_files": { "type": "array", "items": { "type": "string" } },
+      "dependencies": { "type": "array", "items": { "type": "string", "pattern": "^TASK-[0-9]{3}$" } },
+      "behavioral_tests": { "type": "array", "items": { "type": "string" } },
+      "regression_test_requirements": { "type": "string" },
+      "assigned_agent": { "type": "string" },
+      "created_at": { "type": "string", "format": "date-time" },
+      "updated_at": { "type": "string", "format": "date-time" },
+      "blocked_reason": { "type": "string" },
+      "failure_reason": { "type": "string" }
+    },
+    "additionalProperties": false
+  }
+}

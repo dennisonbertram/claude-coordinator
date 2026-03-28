@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Known Issues",
+  "description": "Known problems, workarounds, and tech debt",
+  "type": "object",
+  "required": ["issues"],
+  "properties": {
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "status", "impact"],
+        "properties": {
+          "title": { "type": "string" },
+          "status": { "type": "string", "enum": ["open", "investigating", "workaround-available", "wont-fix", "resolved"] },
+          "impact": { "type": "string" },
+          "workaround": { "type": "string" },
+          "notes": { "type": "string" },
+          "discovered_at": { "type": "string", "format": "date-time" },
+          "discovered_in_task": { "type": "string" }
+        }
+      }
+    },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Task Result",
+  "description": "Normalized per-task artifact from a completed worker",
+  "type": "object",
+  "required": ["task_id", "status", "scope_completed", "files_changed", "tests_run", "timestamp"],
+  "properties": {
+    "task_id": { "type": "string", "pattern": "^TASK-[0-9]{3}$" },
+    "status": { "type": "string", "enum": ["done", "failed", "partial"] },
+    "scope_completed": { "type": "array", "items": { "type": "string" } },
+    "files_changed": { "type": "array", "items": { "type": "string" } },
+    "tests_run": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["suite", "passed", "failed"],
+        "properties": {
+          "suite": { "type": "string" },
+          "passed": { "type": "integer", "minimum": 0 },
+          "failed": { "type": "integer", "minimum": 0 },
+          "skipped": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "tdd_evidence": {
+      "type": "object",
+      "properties": {
+        "failing_output": { "type": "string", "minLength": 1 },
+        "passing_output": { "type": "string", "minLength": 1 }
+      },
+      "required": ["failing_output", "passing_output"]
+    },
+    "behavioral_tests_covered": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["spec_id", "test_description", "status"],
+        "properties": {
+          "spec_id": { "type": "string" },
+          "test_description": { "type": "string" },
+          "status": { "type": "string", "enum": ["pass", "fail"] }
+        }
+      }
+    },
+    "regression_tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["test_name", "catches"],
+        "properties": {
+          "test_name": { "type": "string" },
+          "catches": { "type": "string" }
+        }
+      }
+    },
+    "new_invariants": { "type": "array", "items": { "type": "string" } },
+    "risks_or_blockers": { "type": "array", "items": { "type": "string" } },
+    "recommended_next_step": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

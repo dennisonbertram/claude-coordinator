@@ -548,6 +548,116 @@ Or select **coordinator-experimental** from the agent picker in Claude Code.
 
 ---
 
+## Experimental v2: Structured JSON State
+
+Building on the experimental pure-delegation architecture, v2 replaces all markdown state files with structured JSON validated against schemas. Every write is checked by a schema validator before it is accepted. Malformed or incomplete state is caught immediately and retried.
+
+### Usage
+
+```bash
+claude --agent coordinator-experimental-v2
+```
+
+Prerequisites:
+
+```bash
+pip install jsonschema
+```
+
+### What changes in v2
+
+All state files that were `.md` in the experimental coordinator become `.json` in v2:
+
+| v1 (markdown) | v2 (JSON) |
+|---------------|-----------|
+| `.coord/context-packet.md` | `.coord/context-packet.json` |
+| `docs/context/current-intent.md` | `docs/context/current-intent.json` |
+| `docs/context/repo-practices.md` | `docs/context/repo-practices.json` |
+| `docs/context/known-issues.md` | `docs/context/known-issues.json` |
+| `docs/context/command-intent.md` | `docs/context/command-intent.json` |
+| `docs/plans/active-plan.md` | `docs/plans/active-plan.json` |
+| `docs/plans/execution-brief.md` | `docs/plans/execution-brief.json` |
+| `docs/plans/test-spec.md` | `docs/plans/test-spec.json` |
+
+Files that were already JSON remain unchanged: `.coord/task-ledger.json`, `.coord/learning-inbox.jsonl`, `.coord/tasks/TASK-XXX.json`, `.coord/reviews/REVIEW-XXX.json`, `.coord/milestones/M-XXX.json`.
+
+### 13 JSON Schemas
+
+All state files have a corresponding JSON Schema (Draft 2020-12) in the `schemas/` directory:
+
+| Schema file | Validates |
+|-------------|-----------|
+| `schemas/task-ledger.schema.json` | `.coord/task-ledger.json` |
+| `schemas/task-result.schema.json` | `.coord/tasks/TASK-XXX.json` |
+| `schemas/review-result.schema.json` | `.coord/reviews/REVIEW-XXX.json` |
+| `schemas/context-packet.schema.json` | `.coord/context-packet.json` |
+| `schemas/command-intent.schema.json` | `docs/context/command-intent.json` |
+| `schemas/current-intent.schema.json` | `docs/context/current-intent.json` |
+| `schemas/repo-practices.schema.json` | `docs/context/repo-practices.json` |
+| `schemas/known-issues.schema.json` | `docs/context/known-issues.json` |
+| `schemas/active-plan.schema.json` | `docs/plans/active-plan.json` |
+| `schemas/execution-brief.schema.json` | `docs/plans/execution-brief.json` |
+| `schemas/test-spec.schema.json` | `docs/plans/test-spec.json` |
+| `schemas/learning-entry.schema.json` | Each line of `.coord/learning-inbox.jsonl` |
+| `schemas/milestone.schema.json` | `.coord/milestones/M-XXX.json` |
+
+### Schema Validation Flow
+
+The **scribe-v2** agent handles all state writes and enforces this workflow:
+
+```
+scribe-v2 receives write instruction
+  → writes JSON file
+  → runs: validate-state.sh <file>
+  → PASS: reports success to coordinator
+  → FAIL: reads error, fixes JSON, re-writes, re-validates
+  → coordinator only proceeds after validation passes
+```
+
+Invalid state is never silently accepted. The coordinator will not move to the next phase until the scribe confirms a valid write.
+
+### Validator CLI
+
+```bash
+# Validate all state files in .coord/ and docs/
+bin/validate-state.sh --all
+
+# Validate a single file
+bin/validate-state.sh .coord/task-ledger.json
+
+# Validate stdin against a named schema
+echo '{"what":"...","why":"..."}' | bin/validate-state.sh --schema current-intent
+
+# List all available schemas
+bin/validate-state.sh --list-schemas
+```
+
+### Initialize a v2 project
+
+```bash
+./install.sh --init-project-v2
+```
+
+This scaffolds the `docs/` and `.coord/` directories with JSON templates, copies the `schemas/` directory to your project, and installs `bin/validate-state.sh`.
+
+### Tradeoffs
+
+**Pro:**
+- Schemas enforce required fields — missing data is caught on write, not discovered later
+- Agents follow structured JSON more reliably than freeform markdown
+- Machine-readable state enables tooling, dashboards, and CI validation
+- No ambiguity in parsing — every field has a declared type and constraints
+- `validate-state.sh --all` gives instant visibility into state health
+
+**Con:**
+- Less human-readable than markdown for casual inspection
+- Requires `pip install jsonschema` dependency
+- More round-trips for scribe — write + validate + optional retry vs. write-only
+
+The v2 coordinator is otherwise identical to `coordinator-experimental`: same phases, same subagent team, same behavioral testing discipline. Only the state layer changes.
+
+---
+
 ## Contributing
 
 Contributions are welcome. Please:

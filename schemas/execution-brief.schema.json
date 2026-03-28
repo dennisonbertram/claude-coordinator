@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Execution Brief",
+  "description": "Scoped brief for the current milestone",
+  "type": "object",
+  "required": ["scope", "out_of_scope"],
+  "properties": {
+    "scope": { "type": "string", "minLength": 1 },
+    "out_of_scope": { "type": "array", "items": { "type": "string" } },
+    "key_decisions": { "type": "array", "items": { "type": "string" } },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["risk", "mitigation"],
+        "properties": {
+          "risk": { "type": "string" },
+          "mitigation": { "type": "string" }
+        }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Milestone",
+  "description": "Milestone summary",
+  "type": "object",
+  "required": ["id", "name", "status", "tasks_completed", "created_at"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^M-[0-9]{3}$" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "status": { "type": "string", "enum": ["active", "complete", "abandoned"] },
+    "tasks_completed": { "type": "array", "items": { "type": "string", "pattern": "^TASK-[0-9]{3}$" } },
+    "tasks_failed": { "type": "array", "items": { "type": "string", "pattern": "^TASK-[0-9]{3}$" } },
+    "learnings_promoted": { "type": "integer", "minimum": 0 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

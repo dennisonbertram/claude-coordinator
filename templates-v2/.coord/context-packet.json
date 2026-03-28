@@ -1,0 +1,13 @@
+{
+  "session_date": "",
+  "milestone": {
+    "name": "",
+    "description": "",
+    "progress": "not-started"
+  },
+  "current_state": "Fresh session — no prior context.",
+  "key_decisions": [],
+  "open_blockers": [],
+  "pending_tasks": [],
+  "next_session_notes": ""
+}

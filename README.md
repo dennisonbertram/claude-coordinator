@@ -338,6 +338,9 @@ claude-coordinator/
 │   ├── worker.md                  # Worker agent (scoped implementer)
 │   ├── worker-experimental.md     # Strict TDD worker — proves test-first with failing output
 │   ├── reviewer.md                # Reviewer agent (read-only reviewer)
+│   ├── ui-tester.md               # Visual quality inspector with browser automation (Sonnet)
+│   ├── ux-tester.md               # Usability evaluator with browser automation (Opus)
+│   ├── system-tester.md           # Integration and coverage validator (Sonnet)
 │   ├── scribe.md                  # Lightweight state writer (Haiku)
 │   └── intent-validator.md        # Intent validation against original user request (Opus)
 ├── templates/
@@ -421,7 +424,7 @@ The plugin ships two coordinator modes:
 - **`claude --agent coordinator`** — The stable coordinator with direct read access (`Agent + Read + Glob + Grep`). Can read files itself; delegates implementation and writes to workers.
 - **`claude --agent coordinator-experimental`** — Pure-delegation coordinator with `Agent` tool only. All I/O — reads, writes, searches — goes through specialized subagents. A strict control plane.
 
-### Seven-Agent Team
+### Ten-Agent Team
 
 | Agent | Model | Tools | Role |
 |-------|-------|-------|------|
@@ -431,6 +434,9 @@ The plugin ships two coordinator modes:
 | worker | Sonnet | Full toolset | Implementation with TDD |
 | worker-experimental | Sonnet | Full toolset | Strict TDD implementation — must prove test-first with failing test output before coding. All tasks require regression tests. Used by coordinator-experimental instead of worker. |
 | reviewer | Opus | Read, Glob, Grep | Code review with severity ratings |
+| ui-tester | Sonnet | Read, Bash, Glob, Grep | Visual quality inspector. Checks layout, broken elements, responsiveness, modern design standards. Uses browser automation. |
+| ux-tester | Opus | Read, Bash, Glob, Grep | Usability evaluator. Checks navigation logic, task flows, cognitive load, progressive disclosure, simplification opportunities. Uses browser automation. |
+| system-tester | Sonnet | Read, Bash, Glob, Grep | Integration validator. Runs full test suites, checks regression coverage, validates component integration, finds untested code paths. |
 | scribe | Haiku | Read, Write | All state writes (.coord/, docs/) |
 | intent-validator | Opus | Read, Glob, Grep | Validates completed work against user's original intent. Foreground only — asks user questions. |
 
@@ -440,11 +446,12 @@ The plugin ships two coordinator modes:
 startup:   Briefer reads context → Coordinator receives briefing
 intake:    Coordinator captures command intent → Scribe writes intent doc → User confirms
 plan:      Planner produces task breakdown → Scribe writes plan
-delegate:  Workers execute in parallel (worktree-isolated)
-integrate: Scribe records results and updates task ledger
-review:    Reviewer checks risky changes
+delegate:  Workers execute in parallel (worktree-isolated, strict TDD)
+integrate: Validate worker output, check TDD evidence
+review:    Reviewer checks code quality
+test:      UI tester + UX tester + System tester validate the product
 promote:   Scribe records learnings
-validate:  Intent-validator checks: did we build what the user wanted? (foreground, can ask user)
+validate:  Intent-validator confirms work matches user's intent
 close:     Scribe writes context packet for next session
 ```
 
@@ -469,6 +476,27 @@ Worker output that lacks TDD evidence (failing test output before implementation
 **Regression tests for all task types** — not just bugfixes. Features, refactors, and every other task type must include regression tests that answer: "If this work breaks in the future, what test catches it?"
 
 **All tests must be meaningful** — no `expect(true).toBe(true)`, no tests that can't fail, no testing implementation details instead of behavior.
+
+### Three-Layer Testing
+
+After code review passes, three specialized testers validate the product from different angles:
+
+| Tester | Question | Method |
+|--------|----------|--------|
+| **UI Tester** | Does it look right? | Launches browser, takes screenshots, checks layout/spacing/responsive design, looks for overlapping elements and visual broken-ness |
+| **UX Tester** | Does it make sense? | Uses the app as a first-time user, evaluates navigation logic, identifies simplification opportunities, checks progressive disclosure |
+| **System Tester** | Does it all work? | Runs full test suites, checks regression coverage, validates integration points, finds untested code paths |
+
+**UI + UX testers use browser automation** (`agent-browser` CLI) to interact with the real running app. They evaluate what the user actually sees and experiences, not what the code claims to do.
+
+**System tester runs real tests** — executes the full suite, captures output, cross-references against the behavioral test spec from the planner.
+
+**Testing only blocks on real issues:**
+- **FAIL** → back to delegate phase for fixes
+- **NEEDS-WORK** → coordinator decides: fix now or track for later
+- **PASS** → proceed to intent validation
+
+UI and UX testing only runs for tasks with user-facing changes. Backend-only work only triggers the system tester.
 
 ### Command Intent Capture
 

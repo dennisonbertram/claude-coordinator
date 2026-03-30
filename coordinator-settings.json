@@ -1,0 +1,5 @@
+{
+  "permissions": {
+    "deny": ["Edit", "Write", "Bash", "NotebookEdit", "MultiEdit"]
+  }
+}

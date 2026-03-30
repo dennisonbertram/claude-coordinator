@@ -284,6 +284,24 @@ This keeps the docs accurate and up-to-date without requiring manual maintenance
 
 ---
 
+## Coordinator Permissions
+
+The `coordinator-settings.json` file configures Claude Code permissions for the coordinator agent. By default it **denies** all write and execution tools, enforcing the coordinator's read-only contract:
+
+```json
+{
+  "permissions": {
+    "deny": ["Edit", "Write", "Bash", "NotebookEdit", "MultiEdit"]
+  }
+}
+```
+
+This ensures the coordinator cannot accidentally modify files or run shell commands directly — all writes and execution must go through worker or scribe subagents. If you need to relax these constraints (for example, to let the coordinator run read-only shell commands for diagnostics), remove the relevant entry from the `deny` list.
+
+Install this file into your project as `.claude/settings.json` (or merge it with an existing settings file) when using the coordinator on a project where you want the permission enforcement applied.
+
+---
+
 ## Customization
 
 ### Change model assignments
@@ -353,6 +371,7 @@ claude-coordinator/
 │       ├── task-ledger.json
 │       ├── learning-inbox.jsonl
 │       └── context-packet.md
+├── coordinator-settings.json      # Claude Code permissions for the coordinator agent
 ├── install.sh                     # Manual installer / project scaffolding
 ├── README.md
 └── LICENSE
@@ -440,6 +459,7 @@ The plugin ships two coordinator modes:
 
 ```
 startup:   Briefer reads context → Coordinator receives briefing
+           (fresh session: Scribe adds .coord/ to .gitignore)
 intake:    Coordinator captures command intent → Scribe writes intent doc → User confirms
 plan:      Planner produces task breakdown → Scribe writes plan
 delegate:  Workers execute in parallel (worktree-isolated, strict TDD)
@@ -450,6 +470,14 @@ promote:   Scribe records learnings
 validate:  Intent-validator confirms work matches user's intent
 close:     Scribe writes context packet for next session
 ```
+
+### Fresh Session Setup
+
+On the very first session in a new project (when `.coord/` does not exist), the experimental coordinator automatically protects ephemeral state from being committed. Before any other action, it spawns the scribe to add `.coord/` to the project's `.gitignore` (creating the file if it doesn't exist). This prevents machine operational state from being accidentally committed to the repository.
+
+### Session Resumption
+
+When `.coord/context-packet.md` exists and references an unfinished intent, the coordinator also reads `docs/context/command-intent.md` during startup so it can resume with complete intent context — not just task state.
 
 ### Behavioral Testing & Strict TDD
 

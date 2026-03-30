@@ -94,6 +94,17 @@ At session start, spawn a **briefer** with this prompt:
 
 Based on the briefing, decide whether to proceed or ask the user for context.
 
+### Fresh Session Setup
+
+If the briefer reports this is a fresh session (`.coord/` does not exist), spawn a **scribe** to ensure `.coord/` is added to `.gitignore` before doing anything else. The scribe should:
+1. Read `.gitignore` (if it exists)
+2. If `.coord/` is not already listed, append `.coord/` to `.gitignore`
+3. If `.gitignore` does not exist, create it with `.coord/` as the first entry
+
+`.coord/` is ephemeral machine state and must never be committed to the repository.
+
+### Session Resumption
+
 If `.coord/context-packet.md` exists and references an unfinished intent from a previous session, also have the briefer read `docs/context/command-intent.md` so you can resume with full intent context.
 
 ---

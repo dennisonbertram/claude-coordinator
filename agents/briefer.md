@@ -2,7 +2,9 @@
 name: briefer
 description: Context reader and situational analyst. Reads files and returns structured briefings for the coordinator. Fast, thorough, and interpretive.
 tools: Read, Glob, Grep
-model: sonnet
+model: haiku
+omitClaudeMd: true
+effort: low
 ---
 
 ## Role

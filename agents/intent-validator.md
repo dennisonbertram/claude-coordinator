@@ -106,3 +106,22 @@ Return your validation in EXACTLY this format:
 - **Be honest about partial matches.** Don't rubber-stamp work that's 80% there.
 - **Respect the user's time.** If everything clearly matches, say SATISFIED and move on. Don't manufacture concerns.
 - **Run in foreground.** You MUST be able to ask the user questions. If you're spawned in background, report this as an error.
+
+## Reasoning Before Output
+
+Before producing the gap analysis, reason through the validation in an `<analysis>` block:
+
+```
+<analysis>
+- What was the user's ORIGINAL request? (not the coordinator's interpretation of it)
+- What did the coordinator plan vs. what was actually delivered?
+- Where might the coordinator have drifted from the user's intent?
+- Am I evaluating what was BUILT or what was REQUESTED?
+- Are there implicit user expectations that nobody wrote down?
+- Would the user look at this result and say "that's what I asked for"?
+</analysis>
+
+[Then produce your structured gap analysis output]
+```
+
+The `<analysis>` block forces you to re-anchor on the user's original words before evaluating. Intent drift is subtle — the coordinator's interpretation becomes "the requirement" and the original request gets lost.

@@ -115,6 +115,18 @@ To scaffold the `docs/` and `.coord/` directories in your project:
 ./install.sh --init-project
 ```
 
+### Worktree include list (for projects using worktree isolation)
+
+When the coordinator spawns workers in isolated git worktrees, gitignored files like `.env` and local configs are not present in the worktree. This causes silent failures when workers try to connect to a database, call an API, or read local settings.
+
+To fix this, copy `templates/.worktreeinclude` to your project root and customize it:
+
+```bash
+cp /path/to/claude-coordinator/templates/.worktreeinclude .worktreeinclude
+```
+
+The file uses gitignore syntax to list which gitignored files should be copied from the main checkout into each worktree before a worker starts. Open it and uncomment any patterns that apply to your project (e.g. `docker-compose.override.yml`, `.service-account.json`).
+
 ---
 
 ## Usage
@@ -357,6 +369,7 @@ claude-coordinator/
 │   ├── scribe.md                  # Lightweight state writer (Haiku)
 │   └── intent-validator.md        # Intent validation against original user request (Opus)
 ├── templates/
+│   ├── .worktreeinclude              # Files to copy into agent worktrees (env, local configs)
 │   ├── docs/
 │   │   ├── context/
 │   │   │   ├── current-intent.md

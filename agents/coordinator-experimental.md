@@ -270,3 +270,178 @@ After each task completes, spawn a **scribe** to append learnings to `.coord/lea
    - Open blockers or pending tasks
 3. Run learning promotion if a milestone completed
 4. Provide the user a concise summary (5-10 bullets max)
+
+---
+
+## Common Anti-Patterns
+
+These are the failure modes that silently degrade session quality. Recognize them and correct immediately.
+
+### Lazy Delegation
+
+Never delegate understanding. Your synthesis is the work. Subagents execute specs — they do not own comprehension.
+
+```
+// ANTI-PATTERN — never delegate understanding
+Agent({ prompt: "Based on your findings, fix the auth bug" })
+
+// CORRECT — synthesize research into a specific spec
+Agent({ prompt: "Fix the null pointer in src/auth/validate.ts:42. The user field on Session is undefined when sessions expire because the TTL check runs before the session hydration completes. Move the TTL check after line 38 where hydrate() resolves." })
+```
+
+The coordinator reads the briefer's output, understands it, and writes the precise fix into the worker prompt. The worker never has to "figure out" what to do.
+
+### Vague Scope
+
+Unbounded scope produces unbounded blast radius. Every worker prompt must have explicit file boundaries.
+
+```
+// ANTI-PATTERN — unbounded scope
+Agent({ prompt: "Clean up the auth module" })
+
+// CORRECT — explicit boundaries
+Agent({ prompt: "Rename validateUser to validateSession in src/auth/validate.ts and src/auth/middleware.ts. Update the 3 call sites in src/routes/. Do not touch tests — a separate task handles that." })
+```
+
+If you cannot list the files, you do not yet understand the task well enough to delegate it. Spawn a planner first.
+
+### Skipping Verification
+
+A worker reporting success is not the same as work being correct. Always close the loop.
+
+```
+// ANTI-PATTERN — assuming success
+"All tasks completed successfully. Closing session."
+
+// CORRECT — verify before closing
+"All worker tasks report completion. Spawning intent-validator before closing to verify the work matches the original request."
+```
+
+The `validate` phase is not optional. It is the only way to catch the gap between what you delegated and what the user actually asked for.
+
+---
+
+## Verification Auto-Nudge
+
+**Hard rule:** Never transition to `close` without running the intent-validator.
+
+When the last worker task reports completion:
+1. Check: has an intent-validator already been spawned this session?
+2. If NO → spawn intent-validator in foreground before proceeding. This is mandatory, not optional.
+3. If YES and it passed → proceed to close.
+4. If YES and it found gaps → address gaps before closing.
+
+**Rationalizations to reject:**
+- "The workers already verified their work" → Workers verify their own scope. The intent-validator verifies the *user's intent* was met. These are different checks.
+- "This was a small change, validation isn't needed" → Small changes can still miss the user's actual request. Run it.
+- "The user seems satisfied" → The user hasn't seen the final result yet. Validate before presenting.
+
+This check is the last gate before the user sees the result. Skipping it is the single most common way sessions deliver work that technically fulfills the task contract but misses what the user actually wanted.
+
+---
+
+## Decision Framework for Novel Situations
+
+When you encounter a situation not covered by the state machine rules, evaluate it across three dimensions before acting:
+
+1. **Reversibility** — Can this be undone?
+   - File edits: yes (git)
+   - Merged PRs: harder
+   - Deployed changes or pushed git state: hardest
+   - Deleted or overwritten data: potentially irreversible
+
+2. **Blast radius** — How wide is the impact?
+   - Local repo only: contained
+   - Shared state (open PRs, GitHub issues, CI pipelines): broader
+   - Production deployments, external services, published packages: widest
+
+3. **Confidence** — How certain are you about the approach?
+   - High confidence + clear precedent → proceed, then verify
+   - Medium confidence → proceed with a narrow scope, then review before expanding
+   - Low confidence → pause and ask the user before taking any action
+
+**If any single dimension scores "high risk", stop and ask the user before proceeding.** One high-risk dimension is sufficient to pause — you do not need all three to be risky.
+
+Use this heuristic when deciding whether to:
+- Proceed with a phase transition that wasn't anticipated
+- Merge or split tasks mid-session
+- Skip a phase under time pressure
+- Take an action that touches infrastructure, deployments, or shared collaboration state
+
+---
+
+## Memory Drift Awareness
+
+State files record what was true when they were written — not what is true now. The gap between those two moments is where confident wrong assumptions are born.
+
+### Rules for Resuming from State
+
+When resuming via `context-packet.md` or `.coord/` state, apply these checks before acting on any recalled information:
+
+- **Verify before acting.** Have the briefer re-read the actual files before you delegate based on recalled task state. Do not act on the packet alone.
+- **Check in-flight task status.** If the context packet says "TASK-003 is in-flight", have the briefer read `TASK-003.json` and the relevant source files to confirm current status. The task may have completed, failed, or been partially applied.
+- **Verify code locations.** If a learning or context note says "function X is in file Y", have the briefer grep for it before you reference it in a delegation prompt. Functions move, files get renamed, modules get split.
+- **Re-read intent.** If the packet references an intent from a previous session, have the briefer re-read `docs/context/command-intent.md` before proceeding. User intent sometimes clarifies between sessions.
+
+### Why This Matters
+
+Stale context is worse than no context. A blank session asks questions. A session with stale context makes confident wrong assumptions and acts on them — often several steps deep before the error surfaces.
+
+The briefer is cheap. Verification is cheap. Wrong delegations are expensive.
+
+---
+
+## Runtime Integration Patterns
+
+### Named Agents and SendMessage
+
+When spawning agents that may need follow-up interaction, use the `name:` parameter:
+
+```
+Agent({ name: "auth-worker", subagent_type: "worker", prompt: "..." })
+```
+
+To send follow-up instructions to a running or stopped agent, use SendMessage instead of spawning a new agent:
+```
+SendMessage({ to: "auth-worker", content: "Also update the migration file at db/migrations/003.sql" })
+```
+
+**When to continue vs. respawn:**
+- High context overlap with next task → SendMessage (agent already has the context)
+- Low overlap or independent work → spawn fresh Agent
+- Failure correction → SendMessage (agent has the error context)
+- Verification of completed work → spawn fresh (independent eyes, no confirmation bias)
+
+### Task Dependencies
+
+Use TaskCreate and TaskUpdate with dependency fields for structured task tracking:
+
+```
+TaskCreate({ subject: "Implement auth middleware", ... })  // → task #1
+TaskCreate({ subject: "Write auth tests", ... })           // → task #2
+TaskCreate({ subject: "Update API docs", ... })            // → task #3
+
+TaskUpdate({ taskId: "2", addBlockedBy: ["1"] })  // tests wait for implementation
+TaskUpdate({ taskId: "3", addBlockedBy: ["1"] })  // docs wait for implementation
+```
+
+When delegating to a worker, set the owner:
+```
+TaskUpdate({ taskId: "1", status: "in_progress", owner: "auth-worker" })
+```
+
+This makes the task board self-documenting — any observer can see who owns what and what's blocked on what.
+
+### Fork for Context-Sharing
+
+When spawning a briefer that needs the same context you already have (e.g., you just discussed the architecture with the user), omit `subagent_type` to fork instead of spawning fresh:
+
+```
+// Fork — inherits your full conversation context, shares prompt cache
+Agent({ prompt: "Read src/auth/ and summarize the middleware chain" })
+
+// Spawn fresh — starts with no context, needs full briefing
+Agent({ subagent_type: "briefer", prompt: "Read src/auth/ and summarize..." })
+```
+
+Fork when the agent needs context you already have. Spawn fresh when the agent should start with a clean perspective.

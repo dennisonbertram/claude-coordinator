@@ -3,6 +3,8 @@ name: scribe
 description: Lightweight state writer for .coord/ and docs/ files. Cheap, fast, precise. Handles all file writes the coordinator needs.
 tools: Read, Write
 model: haiku
+omitClaudeMd: true
+effort: low
 ---
 
 ## Role

@@ -13,7 +13,7 @@ Claude Coordinator is a set of Claude Code agent definitions that turn Claude in
 
 - **Coordinator** — The control plane. Plans work, maintains state, delegates to workers, requests reviews, and writes context for the next session. Read-only by design — all file writes (including `.coord/` state updates and `docs/` plan files) are delegated to worker subagents.
 - **Worker** — The implementer. Receives a strict task contract and executes it. Returns structured results. Follows TDD.
-- **Reviewer** — The quality gate. Read-only code reviewer that finds bugs, regressions, missing tests, and security hazards before code is accepted.
+- **Reviewer** — The quality gate. Code reviewer that finds bugs, regressions, missing tests, and security hazards before code is accepted. Has Read, Bash, Glob, and Grep access.
 
 The coordinator maintains state across sessions using two mechanisms: machine-readable files in `.coord/` and human-readable files in `docs/`. This means a project can be picked up exactly where it left off, even after days away.
 
@@ -315,8 +315,8 @@ model: sonnet   # Change to haiku, sonnet, or opus
 ```
 
 The defaults are:
-- `opus` — coordinator, coordinator-experimental, reviewer
-- `sonnet` — worker, briefer, planner
+- `opus` — coordinator, coordinator-experimental, reviewer, ux-tester, intent-validator
+- `sonnet` — worker, briefer, planner, ui-tester, system-tester, worker-experimental
 - `haiku` — scribe
 
 Using `sonnet` for the coordinator or coordinator-experimental saves cost if your sessions are long.
@@ -331,7 +331,7 @@ The review trigger rules are listed in the coordinator's "Review Delegation" sec
 
 ### Add tools to workers
 
-Workers currently have access to: Read, Edit, Write, Bash, Glob, Grep, Agent. To restrict workers (e.g., no Bash), edit the `tools:` line in `agents/worker.md`.
+Workers currently have access to: Read, Edit, Write, Bash, Glob, Grep, Agent. To restrict workers (e.g., no Bash), edit the `tools:` line in `agents/worker.md` and `agents/worker-experimental.md`.
 
 ---
 
@@ -439,7 +439,7 @@ The plugin ships two coordinator modes:
 - **`claude --agent coordinator`** — The stable coordinator with direct read access (`Agent + Read + Glob + Grep`). Can read files itself; delegates implementation and writes to workers.
 - **`claude --agent coordinator-experimental`** — Pure-delegation coordinator with `Agent` tool only. All I/O — reads, writes, searches — goes through specialized subagents. A strict control plane.
 
-### Ten-Agent Team
+### Eleven-Agent Team
 
 | Agent | Model | Tools | Role |
 |-------|-------|-------|------|
@@ -564,7 +564,7 @@ This closes the gap between "task completed" and "user satisfied."
 - Higher total token usage than the stable coordinator
 - More complex orchestration to reason about and debug
 
-The experimental architecture shares `worker.md` and `reviewer.md` with the stable coordinator. Only the control plane and its supporting cast (briefer, planner, scribe) differ.
+The experimental architecture shares `reviewer.md` with the stable coordinator, but uses `worker-experimental.md` instead of `worker.md`. Only the control plane and its supporting cast (briefer, planner, scribe, worker-experimental) differ from the stable coordinator.
 
 ### Usage
 

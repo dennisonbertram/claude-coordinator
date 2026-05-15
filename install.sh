@@ -62,7 +62,7 @@ if [ ! -d "$AGENTS_DIR" ]; then
 fi
 
 # Copy agent files (idempotent — overwrites existing)
-for agent in coordinator coordinator-experimental briefer planner worker worker-experimental reviewer ui-tester ux-tester system-tester scribe intent-validator; do
+for agent in coordinator briefer planner worker worker-refactor worker-test worker-investigation reviewer ui-tester ux-tester system-tester scribe intent-validator learning-extractor; do
   src="$SCRIPT_DIR/agents/${agent}.md"
   dst="$AGENTS_DIR/${agent}.md"
   if [ ! -f "$src" ]; then
@@ -75,6 +75,19 @@ done
 
 echo ""
 echo "Agents installed successfully."
+
+# ─── Clean up renamed/removed agents from prior installs ────────────────────
+
+# Agents that existed in earlier versions but have been retired.
+# Removing them prevents confusion when the coordinator references a name
+# that no longer matches a current agent.
+for retired in coordinator-experimental worker-experimental; do
+  retired_path="$AGENTS_DIR/${retired}.md"
+  if [ -f "$retired_path" ]; then
+    rm -f "$retired_path"
+    echo "  Removed retired agent: $retired_path"
+  fi
+done
 
 # ─── Install CLI launcher ────────────────────────────────────────────────────
 

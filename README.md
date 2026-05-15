@@ -9,11 +9,20 @@
 
 ## What is this?
 
-Claude Coordinator is a set of Claude Code agent definitions that turn Claude into a **structured project manager**. Instead of having a single Claude session try to do everything, this system uses three specialized agents that work together:
+Claude Coordinator is a set of Claude Code agent definitions that turn Claude into a **structured project manager**. Instead of having a single Claude session try to do everything, this system uses a team of specialized agents working under a pure-delegation control plane:
 
-- **Coordinator** — The control plane. Plans work, maintains state, delegates to workers, requests reviews, and writes context for the next session. Read-only by design — all file writes (including `.coord/` state updates and `docs/` plan files) are delegated to worker subagents.
-- **Worker** — The implementer. Receives a strict task contract and executes it. Returns structured results. Follows TDD.
-- **Reviewer** — The quality gate. Code reviewer that finds bugs, regressions, missing tests, and security hazards before code is accepted. Has Read, Bash, Glob, and Grep access.
+- **Coordinator** — The control plane. Plans work, maintains state, delegates everything, and writes context for the next session. Its only tool is `Agent`. It does not read or write files directly.
+- **Briefer** (Haiku) — Reads context files and returns structured briefings. Cheap, fast.
+- **Planner** (Sonnet) — Produces task breakdowns with behavioral-test specifications.
+- **Worker** (Sonnet) — Strict TDD implementation for `feature` / `bugfix` tasks. Produces an auditable red → green → regression commit trail.
+- **Worker-Refactor** (Sonnet) — Behavior-preserving refactors. Existing tests must pass before and after.
+- **Worker-Test** (Sonnet) — Adds tests to existing untested code. Mutation-checks its own tests.
+- **Worker-Investigation** (Sonnet) — Read-only research. Returns structured findings; writes no code.
+- **Reviewer** (Opus) — Read-only code reviewer with severity ratings, plus an external GPT-5.4 review pass.
+- **UI / UX / System Testers** — Validate the built product visually, experientially, and functionally.
+- **Intent-Validator** (Opus) — Final quality gate. Compares what was built against the user's original intent. Runs foreground so it can ask the user questions.
+- **Learning-Extractor** (Opus) — Analyzes task outputs, review findings, AND sub-agent JSONL transcripts to surface code learnings and process learnings (retries, dead ends, scope drift).
+- **Scribe** (Haiku) — Writes all state files. Cheap, fast, precise.
 
 The coordinator maintains state across sessions using two mechanisms: machine-readable files in `.coord/` and human-readable files in `docs/`. This means a project can be picked up exactly where it left off, even after days away.
 
@@ -21,27 +30,30 @@ The coordinator maintains state across sessions using two mechanisms: machine-re
 
 ## How it works
 
-The coordinator operates as an explicit **7-phase state machine**:
+The coordinator operates as an explicit **10-phase state machine**:
 
 ```
-intake → plan → delegate → integrate → review → promote-learnings → close
+startup → intake → plan → delegate → integrate → review → test → promote-learnings → validate → close
 ```
 
 | Phase | What happens |
 |-------|-------------|
-| **intake** | Understand the request. Read context files. Clarify ambiguity before proceeding. |
-| **plan** | Break work into delegatable tasks. Define task contracts. Identify dependencies. Write plan to `docs/plans/active-plan.md`. |
-| **delegate** | Launch worker subagents with strict task contracts. Enforce no file overlap between concurrent workers. |
-| **integrate** | Collect worker results. Validate output contracts were fulfilled. Record artifacts in `.coord/tasks/`. |
-| **review** | Spawn reviewer subagents for risky changes. Block progress on `critical` or `high` severity findings. |
-| **promote-learnings** | Extract insights from completed work. Stage in `.coord/learning-inbox.jsonl`. Promote at milestone boundaries. |
-| **close** | Update milestone state. Write compressed context for next session. Summarize results for user. |
+| **startup** | Briefer reads `.coord/` and `docs/` to orient the session. Fresh sessions add `.coord/` to `.gitignore` via scribe. |
+| **intake** | Capture the user's request as a command-intent doc (verbatim words, interpreted intent, success criteria). User confirms before proceeding. |
+| **plan** | Planner produces a task breakdown with behavioral test specs. User approves before delegation. |
+| **delegate** | Coordinator routes each task to the right worker (worker, worker-refactor, worker-test, worker-investigation) and spawns them in isolated worktrees. No file overlap between concurrent workers. |
+| **integrate** | Collect worker results. Validate output contracts, including audit-trail commit hashes for TDD task types. Reject and re-delegate anything missing the required evidence. |
+| **review** | Reviewer (Opus + GPT-5.4) checks risky changes. Critical/high findings block progress. |
+| **test** | UI tester, UX tester, and system tester validate the built product. UI/UX only run for user-facing changes. |
+| **promote-learnings** | Learning-extractor analyzes task artifacts AND sub-agent transcripts to surface code + process learnings. Scribe records accepted candidates to `.coord/learning-inbox.jsonl`. |
+| **validate** | Intent-validator (foreground) compares the work against the original intent doc. May ask the user clarifying questions. |
+| **close** | Scribe updates the task ledger and writes a context packet for the next session. Coordinator summarizes for the user. |
 
 The coordinator can revisit earlier phases when new information invalidates the current plan.
 
 ---
 
-## Architecture: Three State Layers
+## State Layers
 
 Truth is maintained in three places, each with a different purpose:
 
@@ -195,7 +207,7 @@ Every task the coordinator delegates includes a complete contract. Workers may n
 
 ## Worker Output Format
 
-Every worker must return exactly this structure. The coordinator rejects freeform prose.
+Every worker returns structured output — the coordinator rejects freeform prose. The exact format varies by worker type; here is the format for **worker** (TDD-required `feature` and `bugfix` tasks):
 
 ```
 ## Task Result
@@ -205,13 +217,27 @@ Every worker must return exactly this structure. The coordinator rejects freefor
 - Wired middleware into POST /api/auth/login route
 - Added regression test for 429 response after limit exceeded
 
+### Audit-Trail Commits
+
+| Stage | Commit Hash | Subject |
+|-------|-------------|---------|
+| Red (failing tests) | a1b2c3d | test(red): TASK-042 failing tests for rate-limit |
+| Green (implementation) | e4f5g6h | feat: TASK-042 implement per-IP rate limiting |
+| Regression | i7j8k9l | test(regression): TASK-042 regression coverage |
+
+### TDD Evidence
+(Failing test output captured at the red commit, then passing output at the green commit, then full-suite output at the regression commit — pasted verbatim.)
+
+### Behavioral Tests Written
+(Mapped to behavioral test specs from the task contract.)
+
+### Regression Tests Written
+(With "what future breakage this catches" for each.)
+
 ### Files Changed
 /absolute/path/apps/server/src/middleware/rate-limit.ts
 /absolute/path/apps/server/src/routes/auth.ts
 /absolute/path/apps/server/src/routes/auth.test.ts
-
-### Tests Run
-apps/server/src/routes/auth.test.ts — 12 passed, 0 failed
 
 ### New Invariants or Assumptions
 - Rate limit state is in-memory; restarting the server resets all counters
@@ -223,6 +249,12 @@ apps/server/src/routes/auth.test.ts — 12 passed, 0 failed
 ### Recommended Next Step
 - If horizontal scaling is needed, replace in-memory store with Redis
 ```
+
+**Refactor, test, and investigation workers** return adapted versions of this format. See `agents/worker-refactor.md`, `agents/worker-test.md`, and `agents/worker-investigation.md` for the exact contracts.
+
+### Why audit-trail commits?
+
+The three commits (red → green → regression) produce git-history proof that TDD was actually followed. A reviewer (human or automated) can run `git log --oneline` and see the practice in action. The red commit even contains the failing test output as evidence. Workers that cannot produce this trail (and aren't running in a non-git environment) are rejected and re-delegated.
 
 ---
 
@@ -274,11 +306,18 @@ The coordinator captures knowledge in a two-stage pipeline:
 
 ### Stage 1: Inbox (during tasks)
 
-After each task completes, the coordinator extracts learnings from the worker's output and appends them to `.coord/learning-inbox.jsonl`:
+After each wave of completed tasks, the coordinator spawns a **learning-extractor**. The extractor analyzes:
+
+- `.coord/tasks/TASK-XXX.json` — task artifacts (worker outputs, commit hashes, test results)
+- `.coord/reviews/REVIEW-XXX.json` — reviewer findings
+- The intent-validator's output (if available)
+- **Sub-agent JSONL transcripts** — the raw conversation transcripts of each sub-agent run. These reveal *process* — retries, dead ends, scope drift, confusion — not just results.
+
+It returns structured candidates that include both **code/project learnings** (practices, patterns, issues, decisions) and **process learnings** (where the orchestration itself struggled). The coordinator triages, and the scribe appends accepted candidates to `.coord/learning-inbox.jsonl`:
 
 ```json
-{"task_id": "TASK-007", "learning": "Bun's sqlite driver closes the connection on process exit — explicit close() is not needed in tests", "category": "practice", "timestamp": "2024-01-15T14:32:00Z"}
-{"task_id": "TASK-007", "learning": "Rate limit state is lost on server restart — document this as a known issue", "category": "issue", "timestamp": "2024-01-15T14:32:01Z"}
+{"task_id": "TASK-007", "learning": "Bun's sqlite driver closes the connection on process exit — explicit close() is not needed in tests", "category": "practice", "evidence": "TASK-007 worker output 'New Invariants'", "confidence": "high", "timestamp": "2024-01-15T14:32:00Z"}
+{"task_id": "TASK-007", "learning": "Workers writing tests for legacy modules stall when no clear mocking guidance exists in the contract", "category": "process", "evidence": "transcript lines 200-240", "confidence": "high", "timestamp": "2024-01-15T14:32:01Z"}
 ```
 
 ### Stage 2: Promotion (at milestone boundaries)
@@ -298,7 +337,7 @@ This keeps the docs accurate and up-to-date without requiring manual maintenance
 
 ## Coordinator Permissions
 
-The `coordinator-settings.json` file configures Claude Code permissions for the coordinator agent. By default it **denies** all write and execution tools, enforcing the coordinator's read-only contract:
+The coordinator's frontmatter (`tools: Agent`) already restricts it to delegation only — it cannot edit, write, or run shell commands. As a belt-and-suspenders guard, `coordinator-settings.json` also denies those tools at the permissions layer:
 
 ```json
 {
@@ -327,11 +366,11 @@ model: sonnet   # Change to haiku, sonnet, or opus
 ```
 
 The defaults are:
-- `opus` — coordinator, coordinator-experimental, reviewer, ux-tester, intent-validator
-- `sonnet` — worker, briefer, planner, ui-tester, system-tester, worker-experimental
-- `haiku` — scribe
+- `opus` — coordinator, reviewer, ux-tester, intent-validator, learning-extractor
+- `sonnet` — worker, worker-refactor, worker-test, worker-investigation, planner, ui-tester, system-tester
+- `haiku` — briefer, scribe
 
-Using `sonnet` for the coordinator or coordinator-experimental saves cost if your sessions are long.
+Using `sonnet` for the coordinator saves cost if your sessions are long, but you give up some reasoning quality on complex planning problems.
 
 ### Add custom phases
 
@@ -343,7 +382,7 @@ The review trigger rules are listed in the coordinator's "Review Delegation" sec
 
 ### Add tools to workers
 
-Workers currently have access to: Read, Edit, Write, Bash, Glob, Grep, Agent. To restrict workers (e.g., no Bash), edit the `tools:` line in `agents/worker.md` and `agents/worker-experimental.md`.
+Workers have access to: Read, Edit, Write, Bash, Glob, Grep, Agent (except `worker-investigation`, which is read-only: Read, Bash, Glob, Grep). To restrict workers (e.g., no Bash), edit the `tools:` line in the relevant agent file under `agents/`.
 
 ---
 
@@ -356,18 +395,20 @@ claude-coordinator/
 ├── bin/
 │   └── claude-coordinator            # CLI launcher (symlinked to PATH by install.sh)
 ├── agents/
-│   ├── coordinator.md             # Stable coordinator (Agent + Read + Glob + Grep)
-│   ├── coordinator-experimental.md # Experimental pure-delegation coordinator (Agent-only)
-│   ├── briefer.md                 # Context reader and situational analyst (Sonnet)
-│   ├── planner.md                 # Task breakdown and architecture planning (Sonnet)
-│   ├── worker.md                  # Worker agent (scoped implementer)
-│   ├── worker-experimental.md     # Strict TDD worker — proves test-first with failing output
-│   ├── reviewer.md                # Reviewer agent (read-only reviewer)
-│   ├── ui-tester.md               # Visual quality inspector with browser automation (Sonnet)
-│   ├── ux-tester.md               # Usability evaluator with browser automation (Opus)
+│   ├── coordinator.md             # Pure-delegation control plane (Agent-only, Opus)
+│   ├── briefer.md                 # Context reader and situational analyst (Haiku)
+│   ├── planner.md                 # Task breakdown with behavioral-test specs (Sonnet)
+│   ├── worker.md                  # Strict TDD implementation with red/green/regression commits (Sonnet)
+│   ├── worker-refactor.md         # Behavior-preserving refactors (Sonnet)
+│   ├── worker-test.md             # Coverage uplift with mutation-checked tests (Sonnet)
+│   ├── worker-investigation.md    # Read-only research, returns findings (Sonnet)
+│   ├── reviewer.md                # Read-only code reviewer + GPT-5.4 external review (Opus)
+│   ├── ui-tester.md               # Visual quality inspector + Gemini 3.1 review (Sonnet)
+│   ├── ux-tester.md               # Usability evaluator + Gemini 3.1 review (Opus)
 │   ├── system-tester.md           # Integration and coverage validator (Sonnet)
 │   ├── scribe.md                  # Lightweight state writer (Haiku)
-│   └── intent-validator.md        # Intent validation against original user request (Opus)
+│   ├── intent-validator.md        # Validates work vs. original user intent (Opus)
+│   └── learning-extractor.md      # Analyzes outputs + JSONL transcripts for learnings (Opus)
 ├── templates/
 │   ├── .worktreeinclude              # Files to copy into agent worktrees (env, local configs)
 │   ├── docs/
@@ -445,28 +486,28 @@ This enforces a pure delegation architecture — the coordinator is *only* a con
 
 ---
 
-## Experimental: Pure-Delegation Architecture
+## Architecture Reference
 
-The plugin ships two coordinator modes:
+The coordinator is a pure control plane. Its only tool is `Agent`. It never reads or writes files directly — every operation is delegated to a specialized subagent. This keeps the coordinator's context clean (it sees only what it asked for) and makes the orchestration easy to reason about. The sections below describe the agent team, session flow, and discipline rules in detail.
 
-- **`claude --agent coordinator`** — The stable coordinator with direct read access (`Agent + Read + Glob + Grep`). Can read files itself; delegates implementation and writes to workers.
-- **`claude --agent coordinator-experimental`** — Pure-delegation coordinator with `Agent` tool only. All I/O — reads, writes, searches — goes through specialized subagents. A strict control plane.
-
-### Eleven-Agent Team
+### The Agent Team
 
 | Agent | Model | Tools | Role |
 |-------|-------|-------|------|
-| coordinator-experimental | Opus | Agent | Pure control plane — routes, decides, delegates |
-| briefer | Sonnet | Read, Glob, Grep | Reads context, returns structured briefings |
-| planner | Sonnet | Read, Glob, Grep, Agent | Analyzes codebase, produces task breakdowns |
-| worker | Sonnet | Full toolset | Implementation with TDD |
-| worker-experimental | Sonnet | Full toolset | Strict TDD implementation — must prove test-first with failing test output before coding. All tasks require regression tests. Used by coordinator-experimental instead of worker. |
+| coordinator | Opus | Agent | Pure control plane — routes, decides, delegates |
+| briefer | Haiku | Read, Glob, Grep | Reads context, returns structured briefings |
+| planner | Sonnet | Read, Glob, Grep, Agent | Analyzes codebase, produces task breakdowns with behavioral test specs |
+| worker | Sonnet | Full toolset | Strict TDD for `feature` and `bugfix` tasks. Produces audit-trail commits (red → green → regression). |
+| worker-refactor | Sonnet | Full toolset | Behavior-preserving refactors. No new tests; existing suite must pass before and after. |
+| worker-test | Sonnet | Full toolset | Adds tests to existing code. Mutation-checks its own tests to ensure they catch real breakage. |
+| worker-investigation | Sonnet | Read, Bash, Glob, Grep | Read-only research. Returns structured findings; no code edits, no commits. |
 | reviewer | Opus | Read, Bash, Glob, Grep | Code review with severity ratings (+ GPT-5.4 external review) |
-| ui-tester | Sonnet | Read, Bash, Glob, Grep | Visual quality inspector. Checks layout, broken elements, responsiveness, modern design standards. Uses browser automation. (+ Gemini 3.1 visual review) |
-| ux-tester | Opus | Read, Bash, Glob, Grep | Usability evaluator. Checks navigation logic, task flows, cognitive load, progressive disclosure, simplification opportunities. Uses browser automation. (+ Gemini 3.1 UX review) |
-| system-tester | Sonnet | Read, Bash, Glob, Grep | Integration validator. Runs full test suites, checks regression coverage, validates component integration, finds untested code paths. |
+| ui-tester | Sonnet | Read, Bash, Glob, Grep | Visual quality inspector. Browser automation. (+ Gemini 3.1 visual review) |
+| ux-tester | Opus | Read, Bash, Glob, Grep | Usability evaluator. Browser automation. (+ Gemini 3.1 UX review) |
+| system-tester | Sonnet | Read, Bash, Glob, Grep | Integration validator. Full test suites, regression coverage, integration points. |
 | scribe | Haiku | Read, Write | All state writes (.coord/, docs/) |
 | intent-validator | Opus | Read, Glob, Grep | Validates completed work against user's original intent. Foreground only — asks user questions. |
+| learning-extractor | Opus | Read, Glob, Grep, Bash | Analyzes task artifacts, reviewer findings, intent-validator output, and sub-agent JSONL transcripts. Surfaces both code learnings and process learnings (retries, dead ends, scope drift). |
 
 ### Session Flow
 
@@ -474,12 +515,17 @@ The plugin ships two coordinator modes:
 startup:   Briefer reads context → Coordinator receives briefing
            (fresh session: Scribe adds .coord/ to .gitignore)
 intake:    Coordinator captures command intent → Scribe writes intent doc → User confirms
-plan:      Planner produces task breakdown → Scribe writes plan
-delegate:  Workers execute in parallel (worktree-isolated, strict TDD)
-integrate: Validate worker output, check TDD evidence
-review:    Reviewer checks code quality
+plan:      Planner produces task breakdown → Scribe writes plan → User approves
+delegate:  Workers execute in parallel (worktree-isolated)
+           Coordinator routes by task type:
+             feature/bugfix → worker        (strict TDD, audit-trail commits)
+             refactor       → worker-refactor (before/after test evidence)
+             test           → worker-test    (mutation-checked tests)
+             investigation  → worker-investigation (read-only findings)
+integrate: Validate worker output, check audit-trail commits exist
+review:    Reviewer checks code quality (+ GPT-5.4 external pass)
 test:      UI tester + UX tester + System tester validate the product
-promote:   Scribe records learnings
+promote:   Learning-extractor analyzes outputs + transcripts → Scribe records learnings
 validate:  Intent-validator confirms work matches user's intent
 close:     Scribe writes context packet for next session
 ```
@@ -492,27 +538,34 @@ On the very first session in a new project (when `.coord/` does not exist), the 
 
 When `.coord/context-packet.md` exists and references an unfinished intent, the coordinator also reads `docs/context/command-intent.md` during startup so it can resume with complete intent context — not just task state.
 
-### Behavioral Testing & Strict TDD
+### Behavioral Testing & Strict TDD with Audit-Trail Commits
 
-The experimental architecture enforces a rigorous testing discipline:
+The architecture enforces a rigorous testing discipline backed by git history.
 
 **Planner produces behavioral test specs** — not "write tests for X" but specific, user-observable behaviors expressed as testable assertions:
 - "When a client exceeds 100 requests in 60 seconds, the next request receives HTTP 429"
 - "Given a user with no saved addresses, the checkout page shows an 'Add address' prompt"
 
-**Worker must prove TDD** — the `worker-experimental` agent is required to:
-1. Write all behavioral tests FIRST
-2. Run them and record the FAILING output (proof of test-first)
-3. Implement the minimum code to pass
-4. Run tests again and record PASSING output
-5. Write regression tests for every task type
-6. Include all evidence in the structured report
+**Worker must prove TDD with three commits** — the `worker` agent (used for `feature` and `bugfix` tasks) is required to:
+1. Write all behavioral tests FIRST → run → record the FAILING output → **commit: `test(red): TASK-XXX failing tests for <behavior>`** (with failing output in the message)
+2. Implement the minimum code to pass → run → record PASSING output → **commit: `feat|fix: TASK-XXX implement <behavior>`**
+3. Write regression tests → run full suite → record full-suite output → **commit: `test(regression): TASK-XXX regression coverage`**
 
-Worker output that lacks TDD evidence (failing test output before implementation) is **rejected and re-delegated**.
+The audit-trail commits make TDD compliance provable from `git log --oneline`:
 
-**Regression tests for all task types** — not just bugfixes. Features, refactors, and every other task type must include regression tests that answer: "If this work breaks in the future, what test catches it?"
+```
+i7j8k9l test(regression): TASK-042 regression coverage
+e4f5g6h feat: TASK-042 implement per-IP rate limiting
+a1b2c3d test(red): TASK-042 failing tests for rate-limit
+```
 
-**All tests must be meaningful** — no `expect(true).toBe(true)`, no tests that can't fail, no testing implementation details instead of behavior.
+A reviewer can see immediately that tests came before implementation. The red commit even contains the failing test output as proof.
+
+Worker output that lacks the audit-trail commits (without a documented reason — e.g., the project has no git) is **rejected and re-delegated**.
+
+**Other task types use specialized workers** — refactors, test coverage uplift, and investigations have their own evidence formats. See `agents/worker-refactor.md`, `agents/worker-test.md`, and `agents/worker-investigation.md`.
+
+**All tests must be meaningful** — no `expect(true).toBe(true)`, no tests that can't fail, no testing implementation details instead of behavior. The `worker-test` agent goes further and mutation-checks its own tests to verify they actually catch breakage.
 
 ### Three-Layer Testing
 
@@ -568,24 +621,16 @@ This closes the gap between "task completed" and "user satisfied."
 
 **Pro:**
 - Coordinator context stays pristine — it only sees what it asked for
-- Each agent is optimized for its role and model tier
-- Clean separation of concerns: reads, writes, planning, and implementation are fully decoupled
+- Each agent is optimized for its role and model tier (Haiku for cheap reads/writes, Opus for hard reasoning)
+- Clean separation of concerns: reads, writes, planning, implementation, review, and learning are fully decoupled
+- Audit-trail commits make TDD compliance verifiable from git history
 - Scribe (Haiku) keeps state-write costs minimal
 
 **Con:**
 - More round-trips — every read or write is an agent spawn
-- Higher total token usage than the stable coordinator
+- Higher total token usage than a single-agent approach
 - More complex orchestration to reason about and debug
-
-The experimental architecture shares `reviewer.md` with the stable coordinator, but uses `worker-experimental.md` instead of `worker.md`. Only the control plane and its supporting cast (briefer, planner, scribe, worker-experimental) differ from the stable coordinator.
-
-### Usage
-
-```bash
-claude --agent coordinator-experimental
-```
-
-Or select **coordinator-experimental** from the agent picker in Claude Code.
+- TDD audit trail produces more commits per task (3 for feature/bugfix, 2 for test, 1 for refactor)
 
 ---
 

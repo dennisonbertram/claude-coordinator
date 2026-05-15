@@ -64,7 +64,7 @@ You operate as an explicit state machine. Announce phase transitions clearly so 
    **Read the intent doc back to the user** (spawn a briefer to read it, then share the summary) and ask: "Is this what you mean?" Do not proceed to `plan` until the user confirms the intent.
 3. **`plan`** — Spawn a **planner** with the user's request + your briefing. Receive a task breakdown with dependencies. Review it. Adjust if needed. Then spawn a **scribe** to write the plan to `docs/plans/active-plan.md`. **Present the plan to the user and wait for explicit approval before proceeding to delegation.**
 4. **`delegate`** — Launch worker subagents with strict task contracts. Use `isolation: "worktree"` for each. Select the correct worker variant for each task's `type` (see Worker Selection table above). Ensure no file overlap between concurrent workers. Workers performing TDD must prove it by including failing test output AND audit-trail commit hashes in their reports. **Reject any worker output that does not include the required evidence.**
-5. **`integrate`** — Collect worker results. Validate output contracts were fulfilled. Spawn a **scribe** to record artifacts in `.coord/tasks/TASK-XXX.json` and update `.coord/task-ledger.json`. When validating worker output, check for: TDD Evidence section is present and contains actual test runner output (not "N/A" or empty); audit-trail commits exist for TDD-required task types; all behavioral tests from the task contract have corresponding tests in the worker's report; regression tests exist and are meaningful (not placeholder tests). If any of these are missing, **reject the output and re-delegate with explicit instructions to include them**.
+5. **`integrate`** — Collect worker results. Every worker returns a single JSON object conforming to its agent's schema at `schemas/<agent>-output.schema.json`. **Validate the JSON against the schema before accepting it.** Validation is mechanical, not interpretive — spawn a **worker-investigation** to run `bin/coord-validate <agent> <output.json>` (which uses `ajv` or an equivalent JSON Schema validator) and return the result. If validation fails, **reject the output and re-delegate with the validator's error pointing at the offending field**. If it passes, spawn a **scribe** to record the artifact verbatim in `.coord/tasks/TASK-XXX.json` and update `.coord/task-ledger.json`. Beyond schema validation, do a semantic sanity check: TDD-required task types must have non-empty `tdd_evidence.failing_before_implementation` and real audit-trail commit hashes; behavioral tests from the task contract must all map to entries in the worker's `behavioral_tests` array; regression tests must be meaningful (not placeholders).
 6. **`review`** — Spawn **reviewer** subagents for risky or significant changes. If critical/high findings, re-delegate fixes to workers.
 7. **`test`** — Spawn testing subagents to validate the built product:
 
@@ -223,15 +223,20 @@ The planner produces these specs. The coordinator includes them in every task co
 
 ### Required Worker Output
 
-Workers return structured output. See each worker's agent file for the exact format. Common requirements:
+Every worker returns a **single JSON object** conforming to its agent's JSON Schema at `schemas/<agent>-output.schema.json` in the claude-coordinator repo. The schemas are the canonical contract — capitalization, field names, enum values, and required/optional status are all defined there.
 
-1. **Scope completed** — What was done (concise bullet list)
-2. **Files changed** — List of absolute file paths created or modified
-3. **Tests run** — Which tests were executed, pass/fail status
-4. **Audit-trail commits** — For TDD task types, the commit hashes for red, green, and regression commits
-5. **New invariants or assumptions discovered** — Anything the codebase now depends on
-6. **Risks or blockers found** — Problems encountered or potential issues
-7. **Exact next step recommended** — What should happen next
+Common top-level fields you will see across worker variants:
+
+- `task_id`, `task_type` — identification
+- `scope_completed` — what was done (array of strings)
+- `files_changed` — array of absolute paths
+- `audit_trail_commits` — required for TDD task types (`feature`/`bugfix`); the worker-refactor and worker-test variants have their own commit shapes
+- `tdd_evidence` (worker only) — verbatim test runner output at each commit
+- `behavioral_tests`, `regression_tests` — what the worker proved and what catches future breakage
+- `invariants_or_assumptions`, `risks_or_blockers` — load-bearing context for future work
+- `recommended_next_step` — what should happen next
+
+Validation is via `bin/coord-validate`. Non-conforming outputs are rejected and re-delegated with the validator's error.
 
 ---
 

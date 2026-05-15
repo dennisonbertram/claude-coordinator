@@ -54,50 +54,54 @@ If you can't answer the question definitively, say so. A clear "I cannot determi
 
 ## Output Contract (MANDATORY)
 
-```
-## Investigation Result
+Return a single JSON object conforming to the schema at `schemas/worker-investigation-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
 
-### Question
-(Restate the coordinator's question in your own words)
+### Canonical shape
 
-### Summary
-(1-3 sentence answer — the headline finding)
-
-### Findings
-
-#### Finding 1: <short title>
-- **Claim:** <what you found>
-- **Evidence:**
-  - `path/to/file.ts:42-58` — <relevant excerpt or description>
-  - Command: `<command run>`
-    ```
-    <relevant output excerpt>
-    ```
-- **Confidence:** high | medium | low
-- **Why this confidence level:** <reasoning>
-
-#### Finding 2: ...
-(Same format)
-
-### What I Could Not Determine
-(Questions that arose during investigation that you couldn't answer with the available evidence. Be specific — "the network handler at src/net/client.ts:120 calls `retry()` but I couldn't determine the retry policy without running the service.")
-
-### Suggested Next Steps
-(If the investigation reveals work to do, list it as candidate tasks for the coordinator. Do NOT do this work yourself.)
-
-| Suggested Task | Type | Why |
-|----------------|------|-----|
-| Fix null deref in validate.ts:42 | bugfix | Finding 1 shows this triggers when session expires mid-request |
-| Add tests for the retry policy | test | Finding 3 shows retries are uncovered |
-
-### Files Inspected
-(List the files you actually read, not just files mentioned)
-
-### Commands Run
-(List the bash commands you ran. Useful for the coordinator to know what telemetry was gathered.)
+```json
+{
+  "task_id": "TASK-203",
+  "task_type": "investigation",
+  "question": "Why does the auth middleware occasionally return null for session.user?",
+  "summary": "Race condition: the TTL check at middleware.ts:42 runs before the session hydration completes at middleware.ts:58. Intermittent reproduction confirms the timing.",
+  "findings": [
+    {
+      "title": "TTL check precedes hydration",
+      "claim": "session.user is read at line 42 before await session.hydrate() resolves at line 58",
+      "evidence": [
+        { "kind": "code_reference", "file": "src/auth/middleware.ts:42-58", "excerpt": "const u = session.user\n...\nawait session.hydrate()" },
+        { "kind": "command_output", "command": "node test/repro.js --runs 10", "output": "Run 3: null deref\nRun 7: null deref\n(3/10 runs reproduce)" }
+      ],
+      "confidence": "high",
+      "confidence_reasoning": "Mechanism identified in code and intermittent reproduction confirms timing"
+    }
+  ],
+  "could_not_determine": [
+    "Whether session.hydrate() can be made synchronous without breaking other callers — would require investigating its 3 other call sites."
+  ],
+  "suggested_next_steps": [
+    { "task_summary": "Move TTL check after hydrate() resolves in middleware.ts", "task_type": "bugfix", "rationale": "Finding 1: ordering issue at middleware.ts:42-58" }
+  ],
+  "files_inspected": [
+    "src/auth/middleware.ts",
+    "src/auth/session.ts"
+  ],
+  "commands_run": [
+    "grep -rn 'session.hydrate' src/",
+    "node test/repro.js --runs 10"
+  ]
+}
 ```
 
-Do NOT return freeform prose. Do NOT omit sections.
+### Notes on conformance
+
+- `task_type` is `"investigation"` exactly
+- Every `findings[].evidence[]` entry must include the fields appropriate for its `kind`: `code_reference` needs `file` and `excerpt`; `command_output` needs `command` and `output`
+- `confidence` is `"high"`, `"medium"`, or `"low"`; pair every level with `confidence_reasoning`
+- All arrays must be present; use `[]` for empty rather than omitting
+- No extra fields permitted
+
+**If your JSON does not validate against `schemas/worker-investigation-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Scope Discipline
 

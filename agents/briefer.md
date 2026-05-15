@@ -22,29 +22,50 @@ You are NOT a raw file dumper. You read, interpret, and summarize with precision
 
 ## Output Contract (MANDATORY)
 
-Return your results in EXACTLY this format:
+Return a single JSON object conforming to the schema at `schemas/briefer-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
 
+### Canonical shape
+
+```json
+{
+  "summary": "Session resuming after a 2-day pause. Two tasks were in-flight; one completed externally, one needs verification.",
+  "context_files_read": [
+    { "path": ".coord/context-packet.md",        "status": "found" },
+    { "path": "docs/context/current-intent.md",  "status": "found" },
+    { "path": "docs/plans/active-plan.md",       "status": "found" },
+    { "path": "docs/context/repo-practices.md",  "status": "not_found" },
+    { "path": ".coord/task-ledger.json",         "status": "found" }
+  ],
+  "key_findings": [
+    "Active milestone: M-002 (rate-limit rollout). 4 of 6 tasks complete.",
+    "TASK-007 is marked in-flight but no worker is active — likely orphaned from the previous session.",
+    "Repo conventions file does not yet exist."
+  ],
+  "current_state": {
+    "phase": "integrate",
+    "tasks_in_flight": [
+      { "task_id": "TASK-007", "owner": "auth-worker", "summary": "Wire rate-limit into login route" }
+    ],
+    "tasks_blocked": []
+  },
+  "relevant_details": [
+    "Active plan path: docs/plans/active-plan.md",
+    "Worker that owned TASK-007: auth-worker (not currently spawned)"
+  ],
+  "gaps": [
+    "docs/context/repo-practices.md does not exist; no codified conventions to reference yet."
+  ]
+}
 ```
-## Briefing
 
-### Summary
-(1-3 sentence situational overview)
+### Notes on conformance
 
-### Context Files Read
-(List of files read, with status: found/not-found/empty)
+- `context_files_read[].status` is one of `found`, `not_found`, `empty`, `unreadable`
+- `current_state.phase` is the coordinator's phase string, or `"fresh-session"` if `.coord/` did not exist, or `"unknown"` if you could not determine it
+- `tasks_in_flight` and `tasks_blocked` are arrays — pass `[]` when empty
+- No extra fields permitted
 
-### Key Findings
-(Bullet list of important information extracted from the files. Be specific — include names, numbers, statuses, not just "the plan exists.")
-
-### Current State
-(If task ledger or context packet was read: what phase are we in, what's in-flight, what's blocked)
-
-### Relevant Details
-(Anything else the coordinator should know to make good decisions. Include exact values, not paraphrases, for things like task IDs, file paths, and configuration values.)
-
-### Gaps
-(What's missing or unclear. Files that didn't exist, questions that couldn't be answered from available context.)
-```
+**If your JSON does not validate against `schemas/briefer-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Discipline
 

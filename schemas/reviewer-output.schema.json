@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/reviewer-output.schema.json",
+  "title": "Reviewer Output",
+  "description": "Output contract for the `reviewer` agent. Code review with severity-rated findings plus an external GPT-5.4 review pass.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "overall_severity",
+    "findings",
+    "gpt54_external_review",
+    "missing_test_coverage",
+    "approved"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "1-2 sentence overall assessment.",
+      "minLength": 1
+    },
+    "overall_severity": {
+      "type": "string",
+      "enum": ["pass", "low", "medium", "high", "critical"],
+      "description": "Highest severity across all findings. 'pass' means no findings."
+    },
+    "findings": {
+      "type": "array",
+      "description": "Numbered findings, each with severity and remediation.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "title", "file", "issue", "impact", "suggestion"],
+        "properties": {
+          "severity":  { "type": "string", "enum": ["critical", "high", "medium", "low", "info"] },
+          "title":     { "type": "string", "minLength": 1 },
+          "file":      { "type": "string", "description": "Format 'path:line' or 'path:line-range'." },
+          "issue":     { "type": "string", "description": "What is wrong." },
+          "impact":    { "type": "string", "description": "What could go wrong." },
+          "suggestion":{ "type": "string", "description": "How to fix it." },
+          "evidence":  { "type": "string", "description": "Command output or specific excerpt proving the issue (NOT just reasoning). Optional but strongly recommended." }
+        }
+      }
+    },
+    "gpt54_external_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["submitted", "verdict", "critical_count", "high_count", "notable_findings", "dismissed_findings"],
+      "properties": {
+        "submitted": {
+          "type": "boolean",
+          "description": "Whether the changed files were submitted to GPT-5.4 for review."
+        },
+        "submission_skip_reason": {
+          "type": "string",
+          "description": "If submitted is false, why (e.g., 'llm CLI not available'). Required when submitted is false."
+        },
+        "verdict": {
+          "type": "string",
+          "enum": ["approved", "not_approved", "n/a"],
+          "description": "GPT-5.4's final verdict. 'n/a' if not submitted."
+        },
+        "critical_count": { "type": "integer", "minimum": 0 },
+        "high_count":     { "type": "integer", "minimum": 0 },
+        "notable_findings": {
+          "type": "array",
+          "description": "Findings from GPT-5.4 that this reviewer agrees with and has incorporated into `findings` above.",
+          "items": { "type": "string" }
+        },
+        "dismissed_findings": {
+          "type": "array",
+          "description": "Findings from GPT-5.4 evaluated and dismissed as false positives, with reason.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["finding", "dismissal_reason"],
+            "properties": {
+              "finding":          { "type": "string", "minLength": 1 },
+              "dismissal_reason": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "missing_test_coverage": {
+      "type": "array",
+      "description": "Specific scenarios that should be tested but aren't.",
+      "items": { "type": "string" }
+    },
+    "approved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict"],
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": ["yes", "no", "conditional"]
+        },
+        "conditions": {
+          "type": "array",
+          "description": "Required only when verdict is 'conditional'. Each item is a precondition for approval.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "analysis_scratchpad": {
+      "type": "string",
+      "description": "Optional. The reviewer's pre-output reasoning. Useful for auditing but not validated for content."
+    }
+  }
+}

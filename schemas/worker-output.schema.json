@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/worker-output.schema.json",
+  "title": "Worker Output (Strict TDD)",
+  "description": "Output contract for the `worker` agent. Used for `feature` and `bugfix` task types. Produces a three-commit audit trail (red → green → regression).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "task_type",
+    "scope_completed",
+    "audit_trail_commits",
+    "tdd_evidence",
+    "behavioral_tests",
+    "regression_tests",
+    "files_changed",
+    "invariants_or_assumptions",
+    "risks_or_blockers",
+    "recommended_next_step"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "description": "Task identifier from the contract, e.g. 'TASK-042'.",
+      "pattern": "^TASK-[A-Z0-9-]+$"
+    },
+    "task_type": {
+      "type": "string",
+      "enum": ["feature", "bugfix"],
+      "description": "This worker only accepts feature and bugfix tasks."
+    },
+    "scope_completed": {
+      "type": "array",
+      "description": "Concise bullet list of what was done.",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "audit_trail_commits": {
+      "type": "object",
+      "description": "The three-commit audit trail proving TDD compliance. Use {\"status\": \"n/a — no git\"} as the value for each stage if the project has no git repository.",
+      "additionalProperties": false,
+      "required": ["red", "green", "regression"],
+      "properties": {
+        "red":        { "$ref": "#/$defs/commit_or_na" },
+        "green":      { "$ref": "#/$defs/commit_or_na" },
+        "regression": { "$ref": "#/$defs/commit_or_na" }
+      }
+    },
+    "tdd_evidence": {
+      "type": "object",
+      "description": "Verbatim test runner output captured at each commit. The coordinator inspects these to confirm tests genuinely failed before the green commit.",
+      "additionalProperties": false,
+      "required": ["failing_before_implementation", "passing_after_implementation", "full_suite_at_regression"],
+      "properties": {
+        "failing_before_implementation": {
+          "type": "string",
+          "description": "Failing test output captured at the red commit. Required (not 'N/A') for git-enabled projects.",
+          "minLength": 1
+        },
+        "passing_after_implementation": {
+          "type": "string",
+          "description": "Passing test output captured at the green commit.",
+          "minLength": 1
+        },
+        "full_suite_at_regression": {
+          "type": "string",
+          "description": "Full test suite output (or summary with totals) captured at the regression commit.",
+          "minLength": 1
+        }
+      }
+    },
+    "behavioral_tests": {
+      "type": "array",
+      "description": "Behavioral tests written, each mapped to a behavioral spec from the task contract.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["spec_id", "description", "status"],
+        "properties": {
+          "spec_id":     { "type": "string", "description": "e.g. 'BT-001'." },
+          "description": { "type": "string", "description": "The behavior under test, e.g. 'When X, then Y'." },
+          "status":      { "type": "string", "enum": ["pass", "fail"] }
+        }
+      },
+      "minItems": 1
+    },
+    "regression_tests": {
+      "type": "array",
+      "description": "Regression tests added, with what future breakage each catches.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["test_name", "catches"],
+        "properties": {
+          "test_name": { "type": "string" },
+          "catches":   { "type": "string", "description": "What breakage this test catches if the feature/fix is later reverted or broken." }
+        }
+      },
+      "minItems": 1
+    },
+    "files_changed": {
+      "type": "array",
+      "description": "Absolute file paths created or modified.",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "invariants_or_assumptions": {
+      "type": "array",
+      "description": "Anything discovered during implementation that future work should know. Empty array if none.",
+      "items": { "type": "string" }
+    },
+    "risks_or_blockers": {
+      "type": "array",
+      "description": "Problems encountered or potential issues. Empty array if none.",
+      "items": { "type": "string" }
+    },
+    "recommended_next_step": {
+      "type": "string",
+      "description": "Specific recommendation for what should happen next.",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "commit_or_na": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hash", "subject"],
+          "properties": {
+            "hash":    { "type": "string", "pattern": "^[0-9a-f]{7,40}$", "description": "Git commit hash (7-40 hex chars)." },
+            "subject": { "type": "string", "minLength": 1, "description": "Commit subject line." }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": { "const": "n/a — no git", "description": "Project has no git repository." }
+          }
+        }
+      ]
+    }
+  }
+}

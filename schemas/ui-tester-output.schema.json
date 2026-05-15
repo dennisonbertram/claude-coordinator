@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/ui-tester-output.schema.json",
+  "title": "UI Tester Output",
+  "description": "Output contract for the `ui-tester` agent. Visual quality assessment with browser automation and Gemini 3.1 external review.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "screens_tested",
+    "visual_issues",
+    "design_standards",
+    "console_errors",
+    "gemini_31_external_review",
+    "verdict",
+    "recommended_fixes"
+  ],
+  "properties": {
+    "screens_tested": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["screen", "url_or_route", "desktop_ok", "mobile_ok"],
+        "properties": {
+          "screen":       { "type": "string", "minLength": 1 },
+          "url_or_route": { "type": "string", "minLength": 1 },
+          "desktop_ok":   { "type": "boolean" },
+          "mobile_ok":    { "type": "boolean" },
+          "screenshot_paths": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "minItems": 1
+    },
+    "visual_issues": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["critical", "major", "minor"],
+      "properties": {
+        "critical": { "type": "array", "items": { "$ref": "#/$defs/visual_issue" }, "description": "Blocks release — broken, unreadable, or unusable." },
+        "major":    { "type": "array", "items": { "$ref": "#/$defs/visual_issue" }, "description": "Should fix — misaligned, design-standard violations." },
+        "minor":    { "type": "array", "items": { "$ref": "#/$defs/visual_issue" }, "description": "Nice to fix — small visual polish." }
+      }
+    },
+    "design_standards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layout_quality", "visual_consistency", "modern_feel", "responsiveness", "overall"],
+      "properties": {
+        "layout_quality":     { "$ref": "#/$defs/quality_rating" },
+        "visual_consistency": { "$ref": "#/$defs/quality_rating" },
+        "modern_feel":        { "$ref": "#/$defs/quality_rating" },
+        "responsiveness":     { "$ref": "#/$defs/quality_rating" },
+        "overall":            { "$ref": "#/$defs/quality_rating" }
+      }
+    },
+    "console_errors": {
+      "type": "array",
+      "description": "Rendering-related console errors observed in the browser.",
+      "items": { "type": "string" }
+    },
+    "gemini_31_external_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["submitted", "screenshots_count", "notable_findings", "dismissed_findings"],
+      "properties": {
+        "submitted":              { "type": "boolean" },
+        "submission_skip_reason": { "type": "string", "description": "Required when submitted is false." },
+        "screenshots_count":      { "type": "integer", "minimum": 0 },
+        "notable_findings":       { "type": "array", "items": { "type": "string" } },
+        "dismissed_findings":     {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["finding", "dismissal_reason"],
+            "properties": {
+              "finding":          { "type": "string", "minLength": 1 },
+              "dismissal_reason": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "needs-work", "fail"]
+    },
+    "recommended_fixes": {
+      "type": "array",
+      "description": "Prioritized list of fixes in order of visual impact.",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "visual_issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "screen", "element", "problem"],
+      "properties": {
+        "title":   { "type": "string", "minLength": 1 },
+        "screen":  { "type": "string", "minLength": 1 },
+        "element": { "type": "string", "minLength": 1 },
+        "problem": { "type": "string", "minLength": 1 },
+        "screenshot_path": { "type": "string" }
+      }
+    },
+    "quality_rating": {
+      "type": "string",
+      "enum": ["good", "acceptable", "poor"]
+    }
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/worker-investigation-output.schema.json",
+  "title": "Worker Investigation Output",
+  "description": "Output contract for the `worker-investigation` agent. Read-only research; no code changes, no commits. Findings must cite evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "task_type",
+    "question",
+    "summary",
+    "findings",
+    "could_not_determine",
+    "suggested_next_steps",
+    "files_inspected",
+    "commands_run"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[A-Z0-9-]+$"
+    },
+    "task_type": {
+      "type": "string",
+      "const": "investigation"
+    },
+    "question": {
+      "type": "string",
+      "description": "The coordinator's question, restated in the worker's own words to confirm understanding.",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "description": "Headline finding — 1 to 3 sentences.",
+      "minLength": 1
+    },
+    "findings": {
+      "type": "array",
+      "description": "Each finding is a claim plus evidence plus confidence.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "claim", "evidence", "confidence", "confidence_reasoning"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "claim": { "type": "string", "description": "What was found.", "minLength": 1 },
+          "evidence": {
+            "type": "array",
+            "description": "Specific citations: file:line excerpts or command outputs.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind"],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["code_reference", "command_output", "log_excerpt", "other"]
+                },
+                "file":     { "type": "string", "description": "Required when kind is 'code_reference'. Format 'path:line' or 'path:line-range'." },
+                "excerpt":  { "type": "string", "description": "The cited excerpt." },
+                "command":  { "type": "string", "description": "Required when kind is 'command_output'. The exact command run." },
+                "output":   { "type": "string", "description": "Required when kind is 'command_output'. The relevant excerpt of the output." }
+              }
+            },
+            "minItems": 1
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          },
+          "confidence_reasoning": {
+            "type": "string",
+            "description": "Why this confidence level — what additional evidence would raise or lower it.",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "could_not_determine": {
+      "type": "array",
+      "description": "Questions raised during investigation that the worker could not answer.",
+      "items": { "type": "string" }
+    },
+    "suggested_next_steps": {
+      "type": "array",
+      "description": "Candidate follow-up tasks for the coordinator. The worker does NOT execute these.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task_summary", "task_type", "rationale"],
+        "properties": {
+          "task_summary": { "type": "string", "minLength": 1 },
+          "task_type":    { "type": "string", "enum": ["feature", "bugfix", "refactor", "test", "investigation", "review"] },
+          "rationale":    { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "files_inspected": {
+      "type": "array",
+      "description": "Files actually read during the investigation.",
+      "items": { "type": "string" }
+    },
+    "commands_run": {
+      "type": "array",
+      "description": "Read-only bash commands executed.",
+      "items": { "type": "string" }
+    }
+  }
+}

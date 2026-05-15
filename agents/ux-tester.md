@@ -90,65 +90,93 @@ Gemini can analyze sequences of screenshots as a visual flow, identifying discon
 
 ## Output Contract (MANDATORY)
 
+Return a single JSON object conforming to the schema at `schemas/ux-tester-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
+
+### Canonical shape
+
+```json
+{
+  "user_tasks_tested": [
+    {
+      "task": "First-time user signs up and creates their first project",
+      "steps_required": 7,
+      "intuitive": "partially",
+      "friction_points": [
+        "Step 4 (Choose account type) lists 5 options with no explanation of the difference",
+        "Step 6 (Project visibility) defaults to 'private' but the label looks toggleable, not selected"
+      ]
+    }
+  ],
+  "usability_issues": {
+    "critical": [
+      {
+        "title": "Account-type selection blocks new-user progression",
+        "task": "First-time user signs up",
+        "problem": "5 dropdown options with no descriptions; users don't know which to pick",
+        "user_thought_process": "'I'm not sure if I want Standard or Premium — what's the difference?' followed by abandoning the flow.",
+        "recommendation": "Add a short description under each option, or collapse to 2 options (Free / Pro) with a 'compare plans' link."
+      }
+    ],
+    "major": [],
+    "minor": []
+  },
+  "what_works_well": [
+    "Inline form validation gives immediate, specific feedback (e.g. 'password must be 8+ chars')."
+  ],
+  "simplification_recommendations": [
+    {
+      "recommendation": "Collapse 5 account types to 2",
+      "current_state": "Standard / Premium / Team / Enterprise / Custom — no inline differentiation",
+      "proposed_change": "Free / Pro, with 'Need Team or Enterprise? Contact sales.' link",
+      "why": "Removes a choice that requires research mid-signup; ~80% of users only need the two simplest options.",
+      "risk": "Team and Enterprise users may not see their option immediately; mitigate with the link."
+    }
+  ],
+  "progressive_disclosure_opportunities": [
+    {
+      "screen": "Project settings",
+      "currently_shows": "All 17 settings in one long form",
+      "show_first": "Name, visibility, default branch",
+      "show_on_demand": "Webhooks, integrations, advanced permissions, retention policy (behind an 'Advanced' disclosure)"
+    }
+  ],
+  "gemini_31_external_review": {
+    "submitted": true,
+    "flows_submitted": [
+      { "flow_name": "First-time signup", "screenshot_paths": ["/tmp/signup-1.png", "/tmp/signup-2.png", "/tmp/signup-3.png"] }
+    ],
+    "notable_findings": [
+      "Confirmed signup flow loses momentum at the account-type step (matches Critical Finding 1)."
+    ],
+    "dismissed_findings": [
+      { "finding": "Suggested making the primary button larger", "dismissal_reason": "Current size meets WCAG target-size guidance; making it larger would push other content off-screen on mobile." }
+    ]
+  },
+  "information_architecture_assessment": {
+    "findability": "good",
+    "navigation_logic": "acceptable",
+    "task_efficiency": "poor",
+    "error_recovery": "good",
+    "learnability": "acceptable"
+  },
+  "verdict": "needs-work",
+  "priority_fixes": [
+    "Collapse account-type selection to 2 options (Free / Pro)",
+    "Add inline descriptions under each account-type option if you keep all 5",
+    "Apply progressive disclosure to Project settings"
+  ]
+}
 ```
-## UX Test Result
 
-### User Tasks Tested
+### Notes on conformance
 
-| Task | Steps Required | Intuitive? | Friction Points |
-|------|---------------|-----------|-----------------|
-| (primary task) | (count) | ✅/⚠️/❌ | (where user would hesitate) |
+- `user_tasks_tested[].intuitive` is `yes` | `partially` | `no`
+- Each `information_architecture_assessment` rating is `good` | `acceptable` | `poor`
+- `verdict` is `pass` | `needs-work` | `fail`
+- `gemini_31_external_review.submitted: false` requires `submission_skip_reason`
+- No extra fields permitted
 
-### Usability Issues Found
-
-#### Critical (users will fail or abandon)
-1. **[Issue title]**
-   - Task: (which user task is affected)
-   - Problem: (what's confusing or broken from the user's perspective)
-   - User thought process: ("I expected X but got Y because...")
-   - Recommendation: (how to fix it)
-
-#### Major (users will struggle)
-(Same format)
-
-#### Minor (users will notice but cope)
-(Same format)
-
-### What Works Well
-(Things that are intuitive, well-designed, and should be preserved)
-
-### Simplification Recommendations
-(Ordered by impact — what would most improve the experience)
-
-1. **[Recommendation]**
-   - Current state: (how it works now)
-   - Proposed change: (what to simplify)
-   - Why: (what cognitive load or friction it removes)
-   - Risk: (what might be lost by simplifying)
-
-### Progressive Disclosure Opportunities
-(Where basic/advanced split would help)
-
-| Screen | Currently Shows | Basics (show first) | Advanced (show on demand) |
-|--------|----------------|--------------------|-----------------------|
-
-### Gemini 3.1 External Review
-- **Flows submitted:** (count, with description of each flow)
-- **Notable findings from Gemini:** (list findings you agree with and incorporated)
-- **Dismissed findings:** (list findings you evaluated as personal preference or intentional design choices)
-
-### Information Architecture Assessment
-- **Findability:** [good | acceptable | poor] — Can users find things?
-- **Navigation logic:** [good | acceptable | poor] — Does the structure make sense?
-- **Task efficiency:** [good | acceptable | poor] — Can users complete tasks quickly?
-- **Error recovery:** [good | acceptable | poor] — Can users fix mistakes?
-- **Learnability:** [good | acceptable | poor] — Would a new user figure it out?
-
-### Verdict: [PASS | NEEDS-WORK | FAIL]
-
-### Priority Fixes
-(Top 3-5 changes that would most improve the user experience, in order)
-```
+**If your JSON does not validate against `schemas/ux-tester-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Discipline
 

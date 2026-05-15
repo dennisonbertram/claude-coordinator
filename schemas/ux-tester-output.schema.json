@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/ux-tester-output.schema.json",
+  "title": "UX Tester Output",
+  "description": "Output contract for the `ux-tester` agent. Usability and information-architecture assessment with Gemini 3.1 external review.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "user_tasks_tested",
+    "usability_issues",
+    "what_works_well",
+    "simplification_recommendations",
+    "progressive_disclosure_opportunities",
+    "gemini_31_external_review",
+    "information_architecture_assessment",
+    "verdict",
+    "priority_fixes"
+  ],
+  "properties": {
+    "user_tasks_tested": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task", "steps_required", "intuitive", "friction_points"],
+        "properties": {
+          "task":            { "type": "string", "minLength": 1 },
+          "steps_required": { "type": "integer", "minimum": 1 },
+          "intuitive": {
+            "type": "string",
+            "enum": ["yes", "partially", "no"]
+          },
+          "friction_points": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "minItems": 1
+    },
+    "usability_issues": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["critical", "major", "minor"],
+      "properties": {
+        "critical": { "type": "array", "items": { "$ref": "#/$defs/usability_issue" }, "description": "Users will fail or abandon." },
+        "major":    { "type": "array", "items": { "$ref": "#/$defs/usability_issue" }, "description": "Users will struggle." },
+        "minor":    { "type": "array", "items": { "$ref": "#/$defs/usability_issue" }, "description": "Users will notice but cope." }
+      }
+    },
+    "what_works_well": {
+      "type": "array",
+      "description": "Intuitive, well-designed things that should be preserved.",
+      "items": { "type": "string" }
+    },
+    "simplification_recommendations": {
+      "type": "array",
+      "description": "Ordered by impact — what would most improve the experience.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["recommendation", "current_state", "proposed_change", "why", "risk"],
+        "properties": {
+          "recommendation":  { "type": "string", "minLength": 1 },
+          "current_state":   { "type": "string", "minLength": 1 },
+          "proposed_change": { "type": "string", "minLength": 1 },
+          "why":             { "type": "string", "minLength": 1 },
+          "risk":            { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "progressive_disclosure_opportunities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["screen", "currently_shows", "show_first", "show_on_demand"],
+        "properties": {
+          "screen":          { "type": "string", "minLength": 1 },
+          "currently_shows": { "type": "string", "minLength": 1 },
+          "show_first":      { "type": "string", "minLength": 1 },
+          "show_on_demand":  { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "gemini_31_external_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["submitted", "flows_submitted", "notable_findings", "dismissed_findings"],
+      "properties": {
+        "submitted":              { "type": "boolean" },
+        "submission_skip_reason": { "type": "string" },
+        "flows_submitted": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["flow_name", "screenshot_paths"],
+            "properties": {
+              "flow_name":       { "type": "string", "minLength": 1 },
+              "screenshot_paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+            }
+          }
+        },
+        "notable_findings":   { "type": "array", "items": { "type": "string" } },
+        "dismissed_findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["finding", "dismissal_reason"],
+            "properties": {
+              "finding":          { "type": "string", "minLength": 1 },
+              "dismissal_reason": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "information_architecture_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findability", "navigation_logic", "task_efficiency", "error_recovery", "learnability"],
+      "properties": {
+        "findability":       { "$ref": "#/$defs/quality_rating" },
+        "navigation_logic":  { "$ref": "#/$defs/quality_rating" },
+        "task_efficiency":   { "$ref": "#/$defs/quality_rating" },
+        "error_recovery":    { "$ref": "#/$defs/quality_rating" },
+        "learnability":      { "$ref": "#/$defs/quality_rating" }
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "needs-work", "fail"]
+    },
+    "priority_fixes": {
+      "type": "array",
+      "description": "Top 3-5 changes that would most improve UX, in order.",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "usability_issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "task", "problem", "user_thought_process", "recommendation"],
+      "properties": {
+        "title":                { "type": "string", "minLength": 1 },
+        "task":                 { "type": "string", "minLength": 1 },
+        "problem":              { "type": "string", "minLength": 1 },
+        "user_thought_process": { "type": "string", "description": "'I expected X but got Y because...'" },
+        "recommendation":       { "type": "string", "minLength": 1 }
+      }
+    },
+    "quality_rating": {
+      "type": "string",
+      "enum": ["good", "acceptable", "poor"]
+    }
+  }
+}

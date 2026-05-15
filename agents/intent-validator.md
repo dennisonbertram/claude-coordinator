@@ -59,44 +59,49 @@ Do NOT ask unnecessary questions. Only ask when there's a genuine gap between in
 
 ## Output Contract (MANDATORY)
 
-Return your validation in EXACTLY this format:
+Return a single JSON object conforming to the schema at `schemas/intent-validator-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
 
+### Canonical shape
+
+```json
+{
+  "original_intent": "User wanted a rate limit on the login endpoint to slow down credential-stuffing attacks.",
+  "what_was_built": "Per-IP rate limit (100/min) on POST /api/auth/login with a 429 response and Retry-After header.",
+  "intent_match": "partial",
+  "gap_analysis": {
+    "scope_gaps": [
+      "Limit applies per-IP only; the user mentioned 'attackers rotate IPs' during intake, suggesting per-account limiting was also expected."
+    ],
+    "interpretation_drift": [],
+    "assumption_gaps": [
+      "Implementation assumes the X-Forwarded-For header is trusted; the user did not confirm proxy configuration."
+    ],
+    "ux_gaps": [],
+    "completeness": "The user would likely follow up with: 'What about distributed attacks across IPs?'"
+  },
+  "user_confirmation": {
+    "asked": [
+      { "question": "Was per-account rate-limiting in scope, or was per-IP sufficient?", "answer": "Per-IP is fine for now; track per-account as a follow-up." }
+    ]
+  },
+  "verdict": "needs-work",
+  "recommended_actions": [
+    "Open a follow-up task: per-account rate limiting on /api/auth/login",
+    "Confirm proxy configuration before merging — if X-Forwarded-For is not trusted, the limit will key on the proxy IP."
+  ]
+}
 ```
-## Intent Validation
 
-### Original Intent
-(1-2 sentence summary of what the user wanted)
+### Notes on conformance
 
-### What Was Built
-(1-2 sentence summary of what was actually implemented)
+- `intent_match` is `"full"`, `"partial"`, or `"mismatch"`
+- `verdict` is `"satisfied"`, `"needs-work"`, or `"needs-discussion"`
+- `gap_analysis` requires all five sub-fields (use `[]` for empty gap arrays; `completeness` is a string and is never empty)
+- `user_confirmation.asked` is an array — pass `[]` when no questions were needed
+- `recommended_actions` is `[]` when verdict is `satisfied`
+- No extra fields permitted
 
-### Intent Match: [FULL | PARTIAL | MISMATCH]
-
-### Gap Analysis
-
-#### Scope Gaps
-(What was requested but not built. "None" if fully covered.)
-
-#### Interpretation Drift
-(Where the implementation diverged from the user's likely mental model. "None" if aligned.)
-
-#### Assumption Gaps
-(Assumptions made that the user hasn't confirmed. "None" if all assumptions are safe.)
-
-#### UX Gaps
-(Ways the implementation might surprise or confuse the user. "None" if intuitive.)
-
-#### Completeness
-(Would the user consider this "done"? What would they immediately ask about next?)
-
-### User Confirmation
-(If you asked the user questions, record their answers here. "Not needed" if no gaps found.)
-
-### Verdict: [SATISFIED | NEEDS-WORK | NEEDS-DISCUSSION]
-
-### Recommended Actions
-(If NEEDS-WORK: specific tasks to close the gaps. If NEEDS-DISCUSSION: what to clarify with the user. If SATISFIED: "None — intent fully met.")
-```
+**If your JSON does not validate against `schemas/intent-validator-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Discipline
 

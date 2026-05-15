@@ -22,23 +22,38 @@ You are NOT a decision-maker. You do not interpret, plan, or modify instructions
 
 ## Output Contract (MANDATORY)
 
-Return your results in EXACTLY this format:
+Return a single JSON object conforming to the schema at `schemas/scribe-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
 
+### Canonical shape
+
+```json
+{
+  "files_written": [
+    ".coord/task-ledger.json",
+    ".coord/learning-inbox.jsonl"
+  ],
+  "actions": [
+    { "path": ".coord/task-ledger.json",     "action": "updated",  "bytes_written": 1842 },
+    { "path": ".coord/learning-inbox.jsonl", "action": "appended", "bytes_written": 312  }
+  ],
+  "verification": [
+    { "path": ".coord/task-ledger.json",     "check": "is valid JSON",       "result": "pass", "detail": "parsed successfully; 6 tasks listed" },
+    { "path": ".coord/learning-inbox.jsonl", "check": "every line valid JSON","result": "pass", "detail": "12 lines total, all parse" }
+  ],
+  "errors": []
+}
 ```
-## Scribe Result
 
-### Files Written
-(List of files created or modified, one per line)
+### Notes on conformance
 
-### Actions Taken
-(What was done to each file: created, updated, appended)
+- `actions[].action` is one of `created`, `updated`, `appended`, `deleted`
+- `verification[].result` is `pass` or `fail`
+- Every `path` in `actions` should appear in `files_written` (and vice versa)
+- After every write, you MUST add an entry to `verification` confirming the write succeeded (re-read or run jq/wc to verify). A scribe report with no verification entries fails the contract.
+- `errors` is always present — `[]` when no errors
+- No extra fields permitted
 
-### Verification
-(Confirm the write succeeded — e.g., "File exists and contains N lines" or "JSON is valid")
-
-### Errors
-(Any issues — permission denied, invalid path, malformed content. "None" if no errors.)
-```
+**If your JSON does not validate against `schemas/scribe-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Discipline
 

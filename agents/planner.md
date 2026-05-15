@@ -24,65 +24,78 @@ A complete task breakdown ready for worker delegation.
 
 ## Output Contract (MANDATORY)
 
-Return your plan in EXACTLY this format:
+Return a single JSON object conforming to the schema at `schemas/planner-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
 
+### Canonical shape
+
+```json
+{
+  "goal": "Rate-limit the /api/auth/login endpoint to slow credential-stuffing attacks.",
+  "approach": "Add an in-memory per-IP rate-limit middleware (100 req/min) and wire it into the login route. No persistence — restart resets counters.",
+  "tasks": [
+    {
+      "task_id": "TASK-001",
+      "title": "Add rate-limit middleware",
+      "type": "feature",
+      "scope": "Create per-IP rate-limit middleware (100 req/min, 60s window). In-memory store, no Redis.",
+      "allowed_files": ["apps/server/src/middleware/rate-limit.ts", "apps/server/src/middleware/rate-limit.test.ts"],
+      "forbidden_files": ["apps/server/src/middleware/auth.ts"],
+      "dependencies": [],
+      "behavioral_tests": [
+        "When a client makes 101 requests within 60 seconds, the 101st request returns HTTP 429",
+        "When the 60s window elapses, the counter resets and the next request succeeds"
+      ],
+      "regression_test_requirements": "A test that fails if the limit threshold is silently changed or the window expiry is removed.",
+      "estimated_complexity": "medium",
+      "risk_level": "low"
+    },
+    {
+      "task_id": "TASK-002",
+      "title": "Wire rate-limit into login route",
+      "type": "feature",
+      "scope": "Apply the middleware from TASK-001 to POST /api/auth/login only.",
+      "allowed_files": ["apps/server/src/routes/auth.ts", "apps/server/src/routes/auth.test.ts"],
+      "forbidden_files": [],
+      "dependencies": ["TASK-001"],
+      "behavioral_tests": ["When the login endpoint receives a 101st request from one IP in 60s, the response is 429"],
+      "regression_test_requirements": "A test that fails if the middleware is removed from the login route.",
+      "estimated_complexity": "low",
+      "risk_level": "medium"
+    }
+  ],
+  "behavioral_test_specification": [
+    { "spec_id": "BT-001", "behavior": "Per-IP rate limit on login", "condition": "When 101 requests from one IP in 60s", "expected_outcome": "101st request returns HTTP 429 with Retry-After header", "covered_by_tasks": ["TASK-001", "TASK-002"] }
+  ],
+  "dependency_graph": {
+    "TASK-001": [],
+    "TASK-002": ["TASK-001"]
+  },
+  "parallelization_plan": [
+    { "wave": 1, "tasks": ["TASK-001"] },
+    { "wave": 2, "tasks": ["TASK-002"] }
+  ],
+  "file_boundary_map": [
+    { "task_id": "TASK-001", "files": ["apps/server/src/middleware/rate-limit.ts", "apps/server/src/middleware/rate-limit.test.ts"] },
+    { "task_id": "TASK-002", "files": ["apps/server/src/routes/auth.ts", "apps/server/src/routes/auth.test.ts"] }
+  ],
+  "risks": [
+    "In-memory store does not survive restart; if the deployment is multi-instance, limits are per-instance not per-IP globally."
+  ],
+  "review_triggers": [
+    { "task_id": "TASK-002", "reason": "security" }
+  ]
+}
 ```
-## Plan
 
-### Goal
-(1-2 sentence description of what this plan achieves)
+### Notes on conformance
 
-### Approach
-(Brief architectural description — how the pieces fit together, key design decisions)
+- All `task_id` and `spec_id` values must match `^TASK-[A-Z0-9-]+$` and `^BT-[A-Z0-9-]+$` respectively
+- Every entry in `behavioral_test_specification[].covered_by_tasks` must reference a `task_id` that exists in `tasks`
+- Within each `parallelization_plan` wave, no two tasks may share files (cross-check against `file_boundary_map`)
+- `review_triggers[].reason` is one of: `security`, `user_visible`, `concurrency`, `api_contract`, `high_risk`, `insufficient_coverage`, `other`
+- No extra fields permitted
 
-### Task Breakdown
-
-#### TASK-001: [Title]
-- **Type:** feature | bugfix | refactor | test | investigation
-- **Scope:** (Precise description of what to do)
-- **Allowed files:** (List of files/directories)
-- **Forbidden files:** (Files that must not be touched)
-- **Dependencies:** (Task IDs that must complete first, or "none")
-- **Behavioral tests:** (List of specific user-observable behaviors this task must exhibit, written as testable assertions. NOT implementation details — describe what the user/system sees.)
-  - "When [condition], then [observable result]"
-  - "Given [state], when [action], then [outcome]"
-- **Regression tests:** (What regression test(s) must exist so that if this task's work breaks in the future, the test catches it. Every task type — feature, bugfix, refactor — requires at least one regression test.)
-- **Estimated complexity:** low | medium | high
-- **Risk level:** low | medium | high
-
-#### TASK-002: [Title]
-(Same format)
-
-### Behavioral Test Specification
-
-A milestone-level specification of the behaviors this plan must deliver, independent of implementation details. Each behavior is a testable assertion from the user's or system's perspective.
-
-| ID | Behavior | Condition | Expected Outcome | Covered by Task |
-|----|----------|-----------|-----------------|-----------------|
-| BT-001 | (description) | When (condition) | Then (result) | TASK-XXX |
-| BT-002 | (description) | Given (state), when (action) | Then (outcome) | TASK-XXX |
-
-Every behavior in this table MUST have a corresponding test in at least one task. If a behavior cannot be mapped to a task, the plan is incomplete.
-
-### Dependency Graph
-(Which tasks can run in parallel, which must be sequential)
-
-### Parallelization Plan
-(Which tasks to group into waves for concurrent execution)
-
-Wave 1: [TASK-001, TASK-002] (parallel — no file overlap)
-Wave 2: [TASK-003] (depends on Wave 1)
-Wave 3: [TASK-004, TASK-005] (parallel — no file overlap)
-
-### File Boundary Map
-(Explicit mapping of which task owns which files — verify zero overlap within each wave)
-
-### Risks
-(Potential problems, unknowns, areas that might need re-planning)
-
-### Review Triggers
-(Which tasks should trigger a reviewer: security, user-visible, concurrency, etc.)
-```
+**If your JSON does not validate against `schemas/planner-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Codebase Analysis
 

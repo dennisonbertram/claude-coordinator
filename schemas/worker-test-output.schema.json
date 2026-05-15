@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/worker-test-output.schema.json",
+  "title": "Worker Test Output",
+  "description": "Output contract for the `worker-test` agent. Used for `test` tasks that add coverage to existing untested code. Mutation-checks its own tests.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "task_type",
+    "scope_completed",
+    "audit_trail_commits",
+    "tests_added",
+    "test_runner_output",
+    "coverage_summary",
+    "behaviors_not_covered",
+    "bugs_discovered",
+    "files_changed",
+    "invariants_or_assumptions",
+    "risks_or_blockers",
+    "recommended_next_step"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[A-Z0-9-]+$"
+    },
+    "task_type": {
+      "type": "string",
+      "const": "test"
+    },
+    "scope_completed": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "audit_trail_commits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tests", "mutation_check"],
+      "properties": {
+        "tests":          { "$ref": "#/$defs/commit_or_na" },
+        "mutation_check": { "$ref": "#/$defs/commit_or_na" }
+      }
+    },
+    "tests_added": {
+      "type": "array",
+      "description": "Tests added, with whether each was mutation-checked.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["test_name", "behavior_covered", "mutation_checked"],
+        "properties": {
+          "test_name":        { "type": "string", "minLength": 1 },
+          "behavior_covered": { "type": "string", "minLength": 1 },
+          "mutation_checked": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["mutated_at", "result"],
+                "properties": {
+                  "mutated_at": { "type": "string", "description": "File and line where production code was temporarily mutated, e.g. 'src/rate-limit.ts:42'.", "minLength": 1 },
+                  "result":     { "type": "string", "description": "What happened when the mutation was applied — the test should have FAILED.", "minLength": 1 }
+                }
+              },
+              { "const": false, "description": "Not mutation-checked (e.g., covered transitively by another test). The coordinator may push back." }
+            ]
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "test_runner_output": {
+      "type": "string",
+      "description": "Verbatim test runner output showing all added tests passing.",
+      "minLength": 1
+    },
+    "coverage_summary": {
+      "type": "object",
+      "description": "Coverage reported by a coverage tool, OR a qualitative description of public-surface coverage if no tool is available.",
+      "additionalProperties": false,
+      "required": ["measured_by"],
+      "properties": {
+        "measured_by": {
+          "type": "string",
+          "enum": ["coverage_tool", "qualitative"],
+          "description": "How coverage was measured."
+        },
+        "before_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "after_percent":  { "type": "number", "minimum": 0, "maximum": 100 },
+        "tool_name":      { "type": "string", "description": "e.g. 'c8', 'jest --coverage', 'pytest-cov'." },
+        "qualitative_note": { "type": "string", "description": "If measured_by is 'qualitative', describe what % of the public surface now has at least one test." }
+      }
+    },
+    "behaviors_not_covered": {
+      "type": "array",
+      "description": "Behaviors that exist in the code but were not tested, with reasons.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["behavior", "reason"],
+        "properties": {
+          "behavior": { "type": "string", "minLength": 1 },
+          "reason":   { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "bugs_discovered": {
+      "type": "array",
+      "description": "Bugs found while writing tests. NOT fixed by this worker — listed as recommended bugfix tasks.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["location", "description", "recommended_action"],
+        "properties": {
+          "location":           { "type": "string", "description": "File:line where the bug lives." },
+          "description":        { "type": "string", "minLength": 1 },
+          "recommended_action": { "type": "string", "description": "Recommended bugfix task summary." }
+        }
+      }
+    },
+    "files_changed": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "invariants_or_assumptions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risks_or_blockers": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "recommended_next_step": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "commit_or_na": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hash", "subject"],
+          "properties": {
+            "hash":    { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+            "subject": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": { "const": "n/a — no git" }
+          }
+        }
+      ]
+    }
+  }
+}

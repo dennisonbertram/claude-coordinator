@@ -67,53 +67,57 @@ Record the commit hash.
 
 ## Output Contract (MANDATORY)
 
-```
-## Task Result
+Return a single JSON object conforming to the schema at `schemas/worker-refactor-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
 
-### Scope Completed
-(What was restructured — bullet list)
+### Canonical shape
 
-### Refactor Commit
-
-| Hash | Subject |
-|------|---------|
-| <hash> | refactor: ... |
-
-### Behavior-Preservation Evidence
-
-#### Tests Before Refactor
-```
-[paste test output — pass counts, suite name]
-```
-
-#### Tests After Refactor
-```
-[paste test output — same pass counts]
-```
-
-| Suite | Before | After |
-|-------|--------|-------|
-| <suite name> | <N pass / M total> | <N pass / M total> |
-
-### Files Changed
-(Exact file paths, one per line)
-
-### Refactor Type
-(Rename, extract, inline, move, split, combine, replace-API, etc.)
-
-### What Was NOT Changed
-(Confirm: no API surface changes visible to callers, no behavior changes, no new exports, no removed exports. List the public surface that was preserved.)
-
-### New Invariants or Assumptions
-(Anything discovered during the refactor — e.g., "noticed module X has hidden dependency on Y" — that future work should know)
-
-### Risks or Blockers
-(Any concerns. Especially: did you spot bugs that you did NOT fix? List them as recommended follow-ups.)
-
-### Recommended Next Step
+```json
+{
+  "task_id": "TASK-088",
+  "task_type": "refactor",
+  "scope_completed": [
+    "Renamed validateUser → validateSession across 7 call sites",
+    "Updated import in middleware.ts"
+  ],
+  "refactor_commit": {
+    "hash": "f1e2d3c",
+    "subject": "refactor: TASK-088 rename validateUser → validateSession"
+  },
+  "behavior_preservation": {
+    "before": "Tests: 42 passed, 42 total",
+    "after":  "Tests: 42 passed, 42 total",
+    "suite_comparison": [
+      { "suite_name": "auth", "before_passed": 24, "before_total": 24, "after_passed": 24, "after_total": 24 },
+      { "suite_name": "routes", "before_passed": 18, "before_total": 18, "after_passed": 18, "after_total": 18 }
+    ]
+  },
+  "refactor_type": "rename",
+  "what_was_not_changed": [
+    "Public API surface of src/auth/index.ts",
+    "All function signatures except the renamed symbol"
+  ],
+  "files_changed": [
+    "/abs/path/src/auth/validate.ts",
+    "/abs/path/src/auth/middleware.ts"
+  ],
+  "invariants_or_assumptions": [],
+  "risks_or_blockers": [
+    "Spotted a null-handling bug in middleware.ts:42 — NOT fixed (would be behavior change). Recommend bugfix follow-up."
+  ],
+  "recommended_next_step": "Open a bugfix task for the null-handling issue noted above."
+}
 ```
 
-Do NOT return freeform prose. Do NOT omit sections.
+### Notes on conformance
+
+- `task_type` is `"refactor"` exactly
+- `refactor_commit` must be either `{"hash":"<7-40 hex chars>","subject":"<text>"}` or `{"status":"n/a — no git"}`
+- `behavior_preservation.suite_comparison` must show `before_passed == after_passed` AND `before_total == after_total` per suite — otherwise the refactor changed behavior and this worker is the wrong tool
+- `refactor_type` must be one of: `rename`, `extract`, `inline`, `move`, `split`, `combine`, `replace-api`, `restructure`, `other`
+- `what_was_not_changed` must be a non-empty array
+- No extra fields permitted
+
+**If your JSON does not validate against `schemas/worker-refactor-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Scope Discipline
 

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/worker-refactor-output.schema.json",
+  "title": "Worker Refactor Output",
+  "description": "Output contract for the `worker-refactor` agent. Used for `refactor` tasks. No new tests required; existing suite must pass before and after.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "task_type",
+    "scope_completed",
+    "refactor_commit",
+    "behavior_preservation",
+    "refactor_type",
+    "what_was_not_changed",
+    "files_changed",
+    "invariants_or_assumptions",
+    "risks_or_blockers",
+    "recommended_next_step"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[A-Z0-9-]+$"
+    },
+    "task_type": {
+      "type": "string",
+      "const": "refactor"
+    },
+    "scope_completed": {
+      "type": "array",
+      "description": "What was restructured.",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "refactor_commit": {
+      "description": "Single commit that contains the refactor. Use status:'n/a — no git' if no git.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hash", "subject"],
+          "properties": {
+            "hash":    { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+            "subject": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": { "const": "n/a — no git" }
+          }
+        }
+      ]
+    },
+    "behavior_preservation": {
+      "type": "object",
+      "description": "Evidence the refactor preserved behavior: same test pass counts before and after.",
+      "additionalProperties": false,
+      "required": ["before", "after", "suite_comparison"],
+      "properties": {
+        "before": {
+          "type": "string",
+          "description": "Test runner output captured before the refactor.",
+          "minLength": 1
+        },
+        "after": {
+          "type": "string",
+          "description": "Test runner output captured after the refactor.",
+          "minLength": 1
+        },
+        "suite_comparison": {
+          "type": "array",
+          "description": "Per-suite comparison of pass/total counts before vs after. Counts must match.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["suite_name", "before_passed", "before_total", "after_passed", "after_total"],
+            "properties": {
+              "suite_name":    { "type": "string", "minLength": 1 },
+              "before_passed": { "type": "integer", "minimum": 0 },
+              "before_total":  { "type": "integer", "minimum": 0 },
+              "after_passed":  { "type": "integer", "minimum": 0 },
+              "after_total":   { "type": "integer", "minimum": 0 }
+            }
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "refactor_type": {
+      "type": "string",
+      "description": "Kind of refactor performed.",
+      "enum": ["rename", "extract", "inline", "move", "split", "combine", "replace-api", "restructure", "other"]
+    },
+    "what_was_not_changed": {
+      "type": "array",
+      "description": "Confirms what was preserved. Examples: 'public API surface of module X', 'all exported function signatures', 'database schema'.",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "files_changed": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "invariants_or_assumptions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risks_or_blockers": {
+      "type": "array",
+      "description": "Concerns or follow-ups (e.g., bugs spotted but not fixed because they would be behavior changes).",
+      "items": { "type": "string" }
+    },
+    "recommended_next_step": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

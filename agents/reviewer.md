@@ -63,40 +63,57 @@ In addition to your own analysis, you MUST submit the changed files for external
 - Different models have different blind spots — using both reduces risk
 - External review provides an independent second opinion
 
-## Output Format (MANDATORY)
-Return your review in EXACTLY this format:
+## Output Contract (MANDATORY)
 
+Return a single JSON object conforming to the schema at `schemas/reviewer-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
+
+### Canonical shape
+
+```json
+{
+  "summary": "Two issues: a critical null deref in auth middleware and a missing test for the rate-limit edge case. Otherwise solid.",
+  "overall_severity": "critical",
+  "findings": [
+    {
+      "severity": "critical",
+      "title": "Null deref when session expires mid-request",
+      "file": "src/auth/middleware.ts:42",
+      "issue": "session.user is read before hydrate() resolves; throws TypeError when TTL expires during the request",
+      "impact": "All requests during the race window return 500 instead of 401",
+      "suggestion": "Move the read after the hydrate() await on line 58",
+      "evidence": "node test/repro.js --runs 10 → 3/10 runs throw 'Cannot read property of null'"
+    }
+  ],
+  "gpt54_external_review": {
+    "submitted": true,
+    "verdict": "not_approved",
+    "critical_count": 1,
+    "high_count": 0,
+    "notable_findings": [
+      "Confirmed the null deref at middleware.ts:42 and flagged it as critical (matches Finding 1)"
+    ],
+    "dismissed_findings": [
+      { "finding": "Use of `any` type in errorHandler", "dismissal_reason": "Existing codebase convention; not in scope of this change" }
+    ]
+  },
+  "missing_test_coverage": [
+    "No test exercises the race condition between TTL expiry and session.hydrate()"
+  ],
+  "approved": {
+    "verdict": "no"
+  }
+}
 ```
-## Review Result
 
-### Summary
-(1-2 sentence overall assessment)
+### Notes on conformance
 
-### Severity: [PASS | LOW | MEDIUM | HIGH | CRITICAL]
+- `overall_severity` must reflect the highest severity in `findings`; use `"pass"` when `findings` is empty
+- `findings[].severity` must be one of `critical`, `high`, `medium`, `low`, `info`
+- `gpt54_external_review.submitted: false` requires `submission_skip_reason` and `verdict: "n/a"`
+- `approved.verdict: "conditional"` requires a non-empty `conditions` array
+- No extra fields permitted
 
-### Findings
-(Numbered list. Each finding must include:)
-
-1. **[SEVERITY]** Short title
-   - File: path/to/file.ts:lineNumber
-   - Issue: What's wrong
-   - Impact: What could go wrong
-   - Suggestion: How to fix it
-
-### GPT-5.4 External Review
-- **Submitted:** YES/NO
-- **GPT-5.4 Verdict:** APPROVED / NOT APPROVED
-- **CRITICAL issues found by GPT-5.4:** (count)
-- **HIGH issues found by GPT-5.4:** (count)
-- **Notable findings from GPT-5.4:** (list any findings that you agree with and incorporated into your Findings above)
-- **Dismissed findings:** (list any GPT-5.4 findings you evaluated and dismissed as false positives, with reason)
-
-### Missing Test Coverage
-(List specific scenarios that should be tested but aren't)
-
-### Approved: [YES | NO | CONDITIONAL]
-(If CONDITIONAL, state what must be fixed before approval)
-```
+**If your JSON does not validate against `schemas/reviewer-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Review Discipline
 - List findings FIRST, then summarize — don't bury issues

@@ -105,50 +105,66 @@ If the project has no git, follow the workflow but record the test output and mu
 
 ## Output Contract (MANDATORY)
 
+Return a single JSON object conforming to the schema at `schemas/worker-test-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
+
+### Canonical shape
+
+```json
+{
+  "task_id": "TASK-101",
+  "task_type": "test",
+  "scope_completed": [
+    "Added 8 behavioral tests covering the public surface of src/rate-limit.ts",
+    "Mutation-checked 4 of the new tests"
+  ],
+  "audit_trail_commits": {
+    "tests":          { "hash": "aa11bb2", "subject": "test: TASK-101 add coverage for rate-limit" },
+    "mutation_check": { "hash": "cc33dd4", "subject": "test(mutation-check): TASK-101 verified meaningful failure" }
+  },
+  "tests_added": [
+    {
+      "test_name": "returns 429 after threshold exceeded in the window",
+      "behavior_covered": "Rate limit enforcement once the per-IP threshold is crossed",
+      "mutation_checked": { "mutated_at": "src/rate-limit.ts:42", "result": "Flipped >= to > → test failed as expected with 'Expected 429, got 200'" }
+    },
+    {
+      "test_name": "Retry-After header is set when limit exceeded",
+      "behavior_covered": "Response shape for limited requests",
+      "mutation_checked": false
+    }
+  ],
+  "test_runner_output": "PASS src/rate-limit.test.ts\n  ✓ 8 passing (47ms)",
+  "coverage_summary": {
+    "measured_by": "coverage_tool",
+    "tool_name": "c8",
+    "before_percent": 12.5,
+    "after_percent": 86.0
+  },
+  "behaviors_not_covered": [
+    { "behavior": "Distributed rate-limit reconciliation across nodes", "reason": "Requires a multi-node test harness; out of scope for this task." }
+  ],
+  "bugs_discovered": [
+    { "location": "src/rate-limit.ts:64", "description": "allow('') throws instead of returning a 400-shaped response", "recommended_action": "Open bugfix task: empty-IP handling in RateLimiter.allow" }
+  ],
+  "files_changed": [
+    "/abs/path/src/rate-limit.test.ts"
+  ],
+  "invariants_or_assumptions": [
+    "RateLimiter's window timer resets on the first allow() call after a reset"
+  ],
+  "risks_or_blockers": [],
+  "recommended_next_step": "Open the empty-IP bugfix task; consider adding a worker-test follow-up for the distributed scenario once a multi-node harness exists."
+}
 ```
-## Task Result
 
-### Scope Completed
-(What was covered — bullet list of behaviors now tested)
+### Notes on conformance
 
-### Audit-Trail Commits
+- `task_type` is `"test"` exactly
+- Each `tests_added` entry's `mutation_checked` is either `false` (and the coordinator may push back) or an object `{"mutated_at":"file:line","result":"<what failed and why>"}`
+- `coverage_summary.measured_by` is `"coverage_tool"` (then provide `tool_name` and the numbers) or `"qualitative"` (then provide `qualitative_note`)
+- No extra fields permitted
 
-| Stage | Commit Hash | Subject |
-|-------|-------------|---------|
-| Tests added | <hash> | test: ... |
-| Mutation check | <hash> | test(mutation-check): ... |
-
-### Tests Added
-
-| Test | Behavior Covered | Mutation-Checked? |
-|------|------------------|-------------------|
-| <test name> | <behavior> | Yes — mutated <file:line> → fails |
-| <test name> | <behavior> | No (covered transitively) |
-
-### Test Runner Output
-```
-[paste passing test output]
-```
-
-### Coverage Summary
-(If a coverage tool is available, report before/after numbers for the target module. If not, list what % of the public surface has at least one test.)
-
-### Behaviors NOT Covered
-(Be honest. List behaviors that exist in the code but you didn't write tests for, and why — e.g., "requires external service", "would need 4-hour setup", "saw it but ran out of scope".)
-
-### Bugs Discovered (NOT Fixed)
-(If writing tests revealed bugs, list them here. Each entry: location, what the bug is, and a recommended bugfix task.)
-
-### Files Changed
-(Test files added or modified, one per line)
-
-### New Invariants or Assumptions
-(Anything discovered about how the code actually behaves that future work should know)
-
-### Risks or Blockers
-
-### Recommended Next Step
-```
+**If your JSON does not validate against `schemas/worker-test-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Scope Discipline
 

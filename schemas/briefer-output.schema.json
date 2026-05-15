@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/briefer-output.schema.json",
+  "title": "Briefer Output",
+  "description": "Output contract for the `briefer` agent. Structured situational briefing read from context files.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "context_files_read",
+    "key_findings",
+    "current_state",
+    "relevant_details",
+    "gaps"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "1-3 sentence situational overview.",
+      "minLength": 1
+    },
+    "context_files_read": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "status"],
+        "properties": {
+          "path":   { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["found", "not_found", "empty", "unreadable"] },
+          "size_bytes": { "type": "integer", "minimum": 0, "description": "Optional, useful for very large files." }
+        }
+      }
+    },
+    "key_findings": {
+      "type": "array",
+      "description": "Important information extracted from the files. Be specific — include names, numbers, statuses.",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "current_state": {
+      "type": "object",
+      "description": "Required when a task ledger or context packet was read.",
+      "additionalProperties": false,
+      "required": ["phase", "tasks_in_flight", "tasks_blocked"],
+      "properties": {
+        "phase": {
+          "type": "string",
+          "description": "Coordinator phase the session is currently in, or 'unknown'/'fresh-session' as appropriate."
+        },
+        "tasks_in_flight": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["task_id"],
+            "properties": {
+              "task_id": { "type": "string", "pattern": "^TASK-[A-Z0-9-]+$" },
+              "owner":   { "type": "string" },
+              "summary": { "type": "string" }
+            }
+          }
+        },
+        "tasks_blocked": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["task_id", "blocked_by"],
+            "properties": {
+              "task_id":    { "type": "string", "pattern": "^TASK-[A-Z0-9-]+$" },
+              "blocked_by": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "relevant_details": {
+      "type": "array",
+      "description": "Anything else the coordinator should know. Include exact values for IDs, paths, configuration values.",
+      "items": { "type": "string" }
+    },
+    "gaps": {
+      "type": "array",
+      "description": "Missing/unclear things. Files that didn't exist, questions that couldn't be answered.",
+      "items": { "type": "string" }
+    }
+  }
+}

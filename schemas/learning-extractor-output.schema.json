@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/learning-extractor-output.schema.json",
+  "title": "Learning Extractor Output",
+  "description": "Output contract for the `learning-extractor` agent. Surfaces both code/project learnings (from outputs) and process learnings (from JSONL transcripts).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "inputs_analyzed",
+    "summary",
+    "code_project_learnings",
+    "process_learnings",
+    "successful_patterns",
+    "coordinator_missteps",
+    "could_not_determine",
+    "recommended_inbox_entries"
+  ],
+  "properties": {
+    "inputs_analyzed": {
+      "type": "array",
+      "description": "Every artifact path the extractor was given.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "path"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": ["task_artifact", "review_artifact", "intent_validator", "transcript", "git_log", "other"]
+          },
+          "path":  { "type": "string", "minLength": 1 },
+          "notes": { "type": "string", "description": "e.g., 'line count', 'signal counts', 'briefly what this file covers'." }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "2-3 sentences: what kind of session was this, and what are the top 2-3 takeaways?",
+      "minLength": 1
+    },
+    "code_project_learnings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/learning_candidate" }
+    },
+    "process_learnings": {
+      "type": "array",
+      "description": "Learnings derived from how the orchestration itself worked — retries, dead ends, scope drift, confusion. Sourced from transcripts.",
+      "items": { "$ref": "#/$defs/learning_candidate" }
+    },
+    "successful_patterns": {
+      "type": "array",
+      "description": "Things that worked well and should be repeated. Often go unnoticed because nothing failed.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pattern", "where_seen", "why_it_worked"],
+        "properties": {
+          "pattern":       { "type": "string", "minLength": 1 },
+          "where_seen":    { "type": "string", "minLength": 1 },
+          "why_it_worked": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "coordinator_missteps": {
+      "type": "array",
+      "description": "Where the coordinator's spec or sequencing caused trouble. Framed as process learnings, not blame.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["misstep", "where_seen", "suggested_fix"],
+        "properties": {
+          "misstep":       { "type": "string", "minLength": 1 },
+          "where_seen":    { "type": "string", "description": "e.g., 'TASK-006 transcript, lines 5-15'." },
+          "suggested_fix": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "could_not_determine": {
+      "type": "array",
+      "description": "Questions raised by the artifacts that the artifacts themselves don't answer.",
+      "items": { "type": "string" }
+    },
+    "recommended_inbox_entries": {
+      "type": "array",
+      "description": "JSON-line-ready inbox entries the coordinator can ask the scribe to append to .coord/learning-inbox.jsonl. Each entry already has the canonical shape.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task_id", "learning", "category", "evidence", "confidence", "destination", "timestamp"],
+        "properties": {
+          "task_id":     { "type": "string", "description": "TASK-XXX or 'session' if not tied to a single task." },
+          "learning":    { "type": "string", "minLength": 1 },
+          "category":    { "type": "string", "enum": ["practice", "pattern", "issue", "decision", "process"] },
+          "evidence":    { "type": "string", "minLength": 1 },
+          "confidence":  { "type": "string", "enum": ["high", "medium", "low"] },
+          "destination": { "type": "string", "enum": ["repo-practices", "known-issues", "inbox-only"] },
+          "timestamp":   { "type": "string", "format": "date-time", "description": "ISO 8601." }
+        }
+      }
+    },
+    "analysis_scratchpad": {
+      "type": "string",
+      "description": "Optional. The extractor's pre-output reasoning."
+    }
+  },
+  "$defs": {
+    "learning_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "learning", "evidence", "confidence", "suggested_destination"],
+      "properties": {
+        "category":              { "type": "string", "enum": ["practice", "pattern", "issue", "decision", "process"] },
+        "learning":              { "type": "string", "minLength": 1 },
+        "evidence":              { "type": "string", "description": "Specific source citation: task ID, review ID, file path, transcript line range, etc.", "minLength": 1 },
+        "confidence":            { "type": "string", "enum": ["high", "medium", "low"] },
+        "suggested_destination": { "type": "string", "enum": ["repo-practices", "known-issues", "inbox-only"] }
+      }
+    }
+  }
+}

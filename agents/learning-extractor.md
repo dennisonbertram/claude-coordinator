@@ -104,64 +104,78 @@ For each candidate, decide:
 
 ## Output Contract (MANDATORY)
 
+Return a single JSON object conforming to the schema at `schemas/learning-extractor-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
+
+### Canonical shape
+
+```json
+{
+  "inputs_analyzed": [
+    { "source": "task_artifact",   "path": ".coord/tasks/TASK-003.json",     "notes": "feature task; worker reported scope drift in Risks" },
+    { "source": "review_artifact", "path": ".coord/reviews/REVIEW-002.json", "notes": "1 high finding (auth)" },
+    { "source": "transcript",      "path": ".claude/transcripts/session-42/worker-TASK-007.jsonl", "notes": "8420 lines; 24 tool calls; 4 retry signals" }
+  ],
+  "summary": "Mostly clean session: 3 feature tasks landed with no critical findings. One process signal: worker-refactor stalled twice waiting for test safety nets that didn't exist.",
+  "code_project_learnings": [
+    {
+      "category": "practice",
+      "learning": "Validation belongs at the route layer; deeper layers trust their inputs.",
+      "evidence": "REVIEW-002 finding #2 — reviewer pushed validation back to route after worker placed it in service layer",
+      "confidence": "high",
+      "suggested_destination": "repo-practices"
+    }
+  ],
+  "process_learnings": [
+    {
+      "category": "process",
+      "learning": "When delegating refactor tasks, pre-confirm a test safety net exists or the worker stalls.",
+      "evidence": "transcript .claude/transcripts/session-42/worker-TASK-007.jsonl lines 88-142 show 3 turns of 'are there any tests for this module?' before stopping",
+      "confidence": "high",
+      "suggested_destination": "repo-practices"
+    }
+  ],
+  "successful_patterns": [
+    { "pattern": "Pre-flight briefer on .coord/task-ledger.json before delegating", "where_seen": "TASK-003 transcript, lines 20-45", "why_it_worked": "Caught an in-flight task conflict before the new worker spawned" }
+  ],
+  "coordinator_missteps": [
+    { "misstep": "Sent refactor task to `worker` (TDD-required)", "where_seen": "TASK-006 transcript, lines 5-15", "suggested_fix": "Worker stalled on red commit. Route by task type per Worker Selection table." }
+  ],
+  "could_not_determine": [
+    "Whether the 4 retry signals in TASK-007's transcript share a common cause without re-reading the full transcript window around each."
+  ],
+  "recommended_inbox_entries": [
+    {
+      "task_id": "TASK-003",
+      "learning": "Validation belongs at the route layer; deeper layers trust their inputs.",
+      "category": "practice",
+      "evidence": "REVIEW-002 finding #2",
+      "confidence": "high",
+      "destination": "repo-practices",
+      "timestamp": "2026-05-15T14:32:00Z"
+    },
+    {
+      "task_id": "TASK-007",
+      "learning": "When delegating refactor tasks, pre-confirm a test safety net exists.",
+      "category": "process",
+      "evidence": "transcript lines 88-142",
+      "confidence": "high",
+      "destination": "repo-practices",
+      "timestamp": "2026-05-15T14:32:01Z"
+    }
+  ]
+}
 ```
-## Learning Extraction Result
 
-### Inputs Analyzed
+### Notes on conformance
 
-| Source | Path | Notes |
-|--------|------|-------|
-| task artifact | .coord/tasks/TASK-001.json | <brief> |
-| review artifact | .coord/reviews/REVIEW-001.json | <brief> |
-| transcript | <path> | <line count, tool-call count, signal count> |
+- `inputs_analyzed[].source` is one of `task_artifact`, `review_artifact`, `intent_validator`, `transcript`, `git_log`, `other`
+- Every learning's `category` is one of `practice`, `pattern`, `issue`, `decision`, `process`
+- Every learning's `confidence` is `high` | `medium` | `low`; `suggested_destination` is `repo-practices` | `known-issues` | `inbox-only`
+- `recommended_inbox_entries[].timestamp` must be ISO 8601 (e.g., `2026-05-15T14:32:00Z`); the coordinator uses this verbatim when asking the scribe to append to `.coord/learning-inbox.jsonl`
+- All arrays must be present; use `[]` for empty
+- No extra fields permitted
 
-### Summary
-(2-3 sentences: what kind of session was this, and what are the top 2-3 takeaways)
-
-### Code/Project Learning Candidates
-
-| # | Category | Learning | Evidence | Confidence | Suggested Destination |
-|---|----------|----------|----------|------------|----------------------|
-| 1 | practice | "Validation belongs at the route layer; deeper layers trust their inputs." | TASK-003 worker added validation in service layer; reviewer flagged and pushed it back to route. See .coord/reviews/REVIEW-002.json finding #2. | high | repo-practices |
-| 2 | issue | "The auth middleware does not honor X-Forwarded-For; rate-limit IP lookup is wrong behind a proxy." | TASK-005 worker's 'Risks or Blockers' section + transcript line 412 where worker says "I'll skip proxy handling since it's out of scope". | high | known-issues |
-
-### Process Learning Candidates
-
-| # | Category | Learning | Evidence | Confidence | Suggested Destination |
-|---|----------|----------|----------|------------|----------------------|
-| 1 | process | "When delegating refactor tasks, the coordinator should pre-confirm a test safety net exists, or the worker stalls." | Transcript for TASK-007 shows 3 turns of worker asking 'are there any tests for this module?' before stopping. Lines 88-142. | high | repo-practices |
-| 2 | process | "Workers struggle with TASK contracts that list `forbidden_files` larger than `allowed_files` — they treat allowed as a whitelist anyway, but waste context confirming." | Pattern observed in TASK-002 transcript (lines 60-90) and TASK-004 transcript (lines 105-130). | medium | inbox-only |
-
-### Successful Patterns to Reinforce
-(Things that worked well and should be repeated. These often go unnoticed because nothing failed.)
-
-| Pattern | Where Seen | Why It Worked |
-|---------|------------|---------------|
-| Pre-flight briefer on `.coord/task-ledger.json` before delegating | TASK-003 transcript, lines 20-45 | Caught an in-flight task conflict before the new worker spawned |
-
-### Coordinator Missteps Worth Noting
-(Where the coordinator's spec or sequencing caused trouble. Frame these as process learnings, not blame.)
-
-| Misstep | Where Seen | Suggested Fix |
-|---------|------------|---------------|
-| Sent refactor task to `worker` (TDD-required) | TASK-006 transcript, lines 5-15 | Worker stalled on red commit. Coordinator should route by task type per the Worker Selection table. |
-
-### What I Could Not Determine
-(Questions raised by the artifacts that the artifacts themselves don't answer. Useful for next session's intake.)
-
-### Recommended Inbox Entries
-
-For each candidate the coordinator accepts, here is the JSON-line format ready for the scribe to append to `.coord/learning-inbox.jsonl`:
-
-```jsonl
-{"task_id": "TASK-003", "learning": "Validation belongs at the route layer; deeper layers trust their inputs.", "category": "practice", "evidence": "REVIEW-002 finding #2", "confidence": "high", "destination": "repo-practices", "timestamp": "<ISO-8601>"}
-{"task_id": "TASK-007", "learning": "When delegating refactor tasks, pre-confirm a test safety net exists.", "category": "process", "evidence": "transcript lines 88-142", "confidence": "high", "destination": "repo-practices", "timestamp": "<ISO-8601>"}
-```
-
-(Use the actual ISO-8601 timestamp when emitting these lines.)
-```
-
-Do NOT return freeform prose. Do NOT omit sections.
+**If your JSON does not validate against `schemas/learning-extractor-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Discipline
 

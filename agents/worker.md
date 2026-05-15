@@ -174,76 +174,59 @@ The coordinator will decide whether to accept this or re-delegate after initiali
 
 ## Output Contract (MANDATORY)
 
-When your work is complete, you MUST return a structured report in EXACTLY this format:
+Return a single JSON object conforming to the schema at `schemas/worker-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
 
-```
-## Task Result
+### Canonical shape
 
-### Scope Completed
-(What was done — bullet list)
-
-### Audit-Trail Commits
-
-| Stage | Commit Hash | Subject |
-|-------|-------------|---------|
-| Red (failing tests) | <hash> | <commit subject> |
-| Green (implementation) | <hash> | <commit subject> |
-| Regression | <hash> | <commit subject> |
-
-`git log --oneline <red_commit>..HEAD -- <allowed_files>` should show exactly these three commits in order.
-
-### TDD Evidence
-
-#### Failing Tests (BEFORE implementation, captured at red commit)
-
-```
-[paste actual failing test output here]
-```
-
-#### Passing Tests (AFTER implementation, captured at green commit)
-
-```
-[paste actual passing test output here]
-```
-
-#### Full Suite (captured at regression commit)
-
-```
-[paste full suite output or summary with totals]
-```
-
-### Behavioral Tests Written
-
-| Spec ID | Test Description | Status |
-|---------|-----------------|--------|
-| BT-001 | "When X, then Y" | ✅ Pass |
-
-### Regression Tests Written
-
-| Test | What It Catches |
-|------|----------------|
-| "test name" | "If [specific thing] breaks, this test fails because [reason]" |
-
-### Files Changed
-
-(Exact file paths, one per line)
-
-### New Invariants or Assumptions
-
-(Anything discovered during implementation that future work should know)
-
-### Risks or Blockers
-
-(Any concerns, edge cases not covered, or issues found)
-
-### Recommended Next Step
-
-(What should happen next — be specific)
+```json
+{
+  "task_id": "TASK-042",
+  "task_type": "feature",
+  "scope_completed": [
+    "Added rate-limit middleware with configurable window and max-requests",
+    "Wired middleware into POST /api/auth/login route"
+  ],
+  "audit_trail_commits": {
+    "red":        { "hash": "a1b2c3d", "subject": "test(red): TASK-042 failing tests for rate-limit" },
+    "green":      { "hash": "e4f5g6h", "subject": "feat: TASK-042 implement per-IP rate limiting" },
+    "regression": { "hash": "i7j8k9l", "subject": "test(regression): TASK-042 regression coverage" }
+  },
+  "tdd_evidence": {
+    "failing_before_implementation": "FAIL src/middleware/rate-limit.test.ts\n  ● returns 429 after threshold ...",
+    "passing_after_implementation":  "PASS src/middleware/rate-limit.test.ts\n  ✓ returns 429 after threshold (12ms)",
+    "full_suite_at_regression":      "Test Suites: 12 passed, 12 total\nTests: 87 passed, 87 total"
+  },
+  "behavioral_tests": [
+    { "spec_id": "BT-001", "description": "When client exceeds 100 req/60s, next request returns 429", "status": "pass" }
+  ],
+  "regression_tests": [
+    { "test_name": "rate-limit honors Retry-After", "catches": "If the Retry-After header is dropped, this test fails because it asserts the header exists with the correct seconds value." }
+  ],
+  "files_changed": [
+    "/abs/path/apps/server/src/middleware/rate-limit.ts",
+    "/abs/path/apps/server/src/routes/auth.ts",
+    "/abs/path/apps/server/src/routes/auth.test.ts"
+  ],
+  "invariants_or_assumptions": [
+    "Rate-limit state is in-memory; restarting the server resets counters"
+  ],
+  "risks_or_blockers": [
+    "No distributed rate limiting — multiple instances will not share state"
+  ],
+  "recommended_next_step": "If horizontal scaling is needed, replace the in-memory store with Redis."
+}
 ```
 
-Do NOT return freeform prose. Do NOT omit sections. Every section must be present even if the answer is "None."
+### Notes on conformance
 
-**If you do not include the Audit-Trail Commits table with three real commit hashes (or `"n/a — no git"` if the project has no git), your work will be rejected and re-delegated.**
+- `task_id` must match `^TASK-[A-Z0-9-]+$`
+- `task_type` must be `"feature"` or `"bugfix"` — this worker only accepts those types
+- Each `audit_trail_commits` entry must be either `{"hash":"<7-40 hex chars>","subject":"<text>"}` or `{"status":"n/a — no git"}` (the latter only when the project has no git repo)
+- `tdd_evidence.failing_before_implementation` must be non-empty when git is available — pasting empty output or "N/A" will fail validation and be rejected
+- All array fields must be present; pass an empty array `[]` if there are no items rather than omitting the field
+- No extra fields are permitted (the schema uses `additionalProperties: false`)
+
+**If your JSON does not validate against `schemas/worker-output.schema.json`, the coordinator will reject it and re-delegate the task.**
 
 ## Scope Discipline
 

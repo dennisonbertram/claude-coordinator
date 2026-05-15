@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/scribe-output.schema.json",
+  "title": "Scribe Output",
+  "description": "Output contract for the `scribe` agent. Confirms what was written, where, and that the write succeeded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "files_written",
+    "actions",
+    "verification",
+    "errors"
+  ],
+  "properties": {
+    "files_written": {
+      "type": "array",
+      "description": "Absolute paths of every file the scribe touched.",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "actions": {
+      "type": "array",
+      "description": "One entry per file. What was done to each.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "action"],
+        "properties": {
+          "path":   { "type": "string", "minLength": 1 },
+          "action": { "type": "string", "enum": ["created", "updated", "appended", "deleted"] },
+          "bytes_written": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "verification": {
+      "type": "array",
+      "description": "Post-write confirmations. The scribe MUST re-read each file (or run jq/wc) to verify it was written correctly.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "check", "result"],
+        "properties": {
+          "path":   { "type": "string", "minLength": 1 },
+          "check":  { "type": "string", "description": "e.g. 'file exists', 'is valid JSON', 'line count matches expected'." },
+          "result": { "type": "string", "enum": ["pass", "fail"] },
+          "detail": { "type": "string", "description": "Optional. e.g. 'file exists and contains 42 lines'." }
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "description": "Any errors encountered. Empty array if none.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "error"],
+        "properties": {
+          "path":  { "type": "string" },
+          "error": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

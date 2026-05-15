@@ -205,56 +205,86 @@ Every task the coordinator delegates includes a complete contract. Workers may n
 
 ---
 
-## Worker Output Format
+## Worker Output: JSON Schemas
 
-Every worker returns structured output — the coordinator rejects freeform prose. The exact format varies by worker type; here is the format for **worker** (TDD-required `feature` and `bugfix` tasks):
+Every agent returns a **single JSON object** conforming to a JSON Schema (Draft 2020-12). Schemas live in `schemas/` at the repo root and are the canonical contract for each agent's output.
 
 ```
-## Task Result
-
-### Scope Completed
-- Added rate-limit middleware with configurable window and max-requests
-- Wired middleware into POST /api/auth/login route
-- Added regression test for 429 response after limit exceeded
-
-### Audit-Trail Commits
-
-| Stage | Commit Hash | Subject |
-|-------|-------------|---------|
-| Red (failing tests) | a1b2c3d | test(red): TASK-042 failing tests for rate-limit |
-| Green (implementation) | e4f5g6h | feat: TASK-042 implement per-IP rate limiting |
-| Regression | i7j8k9l | test(regression): TASK-042 regression coverage |
-
-### TDD Evidence
-(Failing test output captured at the red commit, then passing output at the green commit, then full-suite output at the regression commit — pasted verbatim.)
-
-### Behavioral Tests Written
-(Mapped to behavioral test specs from the task contract.)
-
-### Regression Tests Written
-(With "what future breakage this catches" for each.)
-
-### Files Changed
-/absolute/path/apps/server/src/middleware/rate-limit.ts
-/absolute/path/apps/server/src/routes/auth.ts
-/absolute/path/apps/server/src/routes/auth.test.ts
-
-### New Invariants or Assumptions
-- Rate limit state is in-memory; restarting the server resets all counters
-- The 100 req/min limit is hardcoded; make configurable if requirements change
-
-### Risks or Blockers
-- No distributed rate limiting — multiple server instances will not share state
-
-### Recommended Next Step
-- If horizontal scaling is needed, replace in-memory store with Redis
+schemas/
+├── README.md                            # Map of schemas → agents
+├── worker-output.schema.json            # Strict TDD output (feature/bugfix)
+├── worker-refactor-output.schema.json   # Behavior-preserving refactor
+├── worker-test-output.schema.json       # Coverage uplift with mutation-checks
+├── worker-investigation-output.schema.json
+├── reviewer-output.schema.json
+├── intent-validator-output.schema.json
+├── learning-extractor-output.schema.json
+├── briefer-output.schema.json
+├── planner-output.schema.json
+├── ui-tester-output.schema.json
+├── ux-tester-output.schema.json
+├── system-tester-output.schema.json
+└── scribe-output.schema.json
 ```
 
-**Refactor, test, and investigation workers** return adapted versions of this format. See `agents/worker-refactor.md`, `agents/worker-test.md`, and `agents/worker-investigation.md` for the exact contracts.
+### Example: `worker` output (TDD `feature`/`bugfix` tasks)
 
-### Why audit-trail commits?
+```json
+{
+  "task_id": "TASK-042",
+  "task_type": "feature",
+  "scope_completed": [
+    "Added rate-limit middleware with configurable window and max-requests",
+    "Wired middleware into POST /api/auth/login route"
+  ],
+  "audit_trail_commits": {
+    "red":        { "hash": "a1b2c3d", "subject": "test(red): TASK-042 failing tests for rate-limit" },
+    "green":      { "hash": "e4f5g6h", "subject": "feat: TASK-042 implement per-IP rate limiting" },
+    "regression": { "hash": "i7j8k9l", "subject": "test(regression): TASK-042 regression coverage" }
+  },
+  "tdd_evidence": {
+    "failing_before_implementation": "FAIL ... ● returns 429 after threshold",
+    "passing_after_implementation":  "PASS ... ✓ returns 429 after threshold (12ms)",
+    "full_suite_at_regression":      "Test Suites: 12 passed, 12 total"
+  },
+  "behavioral_tests": [
+    { "spec_id": "BT-001", "description": "When client exceeds 100/60s, response is 429", "status": "pass" }
+  ],
+  "regression_tests": [
+    { "test_name": "rate-limit honors Retry-After", "catches": "Dropped Retry-After header" }
+  ],
+  "files_changed": [
+    "/abs/path/apps/server/src/middleware/rate-limit.ts"
+  ],
+  "invariants_or_assumptions": ["Rate-limit state is in-memory; restart resets counters"],
+  "risks_or_blockers": ["No distributed rate limiting"],
+  "recommended_next_step": "Replace in-memory store with Redis if horizontal scaling is required."
+}
+```
 
-The three commits (red → green → regression) produce git-history proof that TDD was actually followed. A reviewer (human or automated) can run `git log --oneline` and see the practice in action. The red commit even contains the failing test output as evidence. Workers that cannot produce this trail (and aren't running in a non-git environment) are rejected and re-delegated.
+### Why JSON Schema instead of a Markdown template
+
+Earlier versions of this project used `### Markdown Headings` as the output contract. Models drifted on heading capitalization, section ordering, and prose-vs-structured content — and "did the worker conform?" became an interpretive check rather than a mechanical one. JSON Schema fixes all three:
+
+- Validation is deterministic. `bin/coord-validate` either succeeds or points at the offending field.
+- "Conform to this schema" puts the model in structured-output mode, which is measurably less prone to drift than "fill in this template."
+- The output goes straight into `.coord/tasks/TASK-XXX.json` with no Markdown-to-JSON translation step.
+
+### Validating an output
+
+```bash
+# From a file
+bin/coord-validate worker .coord/tasks/TASK-042.json
+
+# From stdin
+cat output.json | bin/coord-validate reviewer -
+```
+
+Exit codes: `0` = valid, `1` = invalid (validator prints the failing field path), `2` = usage error or no validator installed. The script prefers `ajv-cli`, falls back to `check-jsonschema`, then to Python's `jsonschema` package.
+
+### Audit-trail commits (worker only)
+
+For `feature` and `bugfix` tasks the `worker` agent additionally produces three commits — `test(red): ...`, `feat|fix: ...`, `test(regression): ...` — so TDD compliance is provable from `git log` independent of the JSON output. The audit-trail commit hashes appear in the JSON under `audit_trail_commits` and are cross-checked by the coordinator during `integrate`.
 
 ---
 
@@ -393,7 +423,8 @@ claude-coordinator/
 ├── .claude-plugin/
 │   └── plugin.json               # Plugin manifest
 ├── bin/
-│   └── claude-coordinator            # CLI launcher (symlinked to PATH by install.sh)
+│   ├── claude-coordinator         # CLI launcher (symlinked to PATH by install.sh)
+│   └── coord-validate             # JSON Schema validator for agent outputs
 ├── agents/
 │   ├── coordinator.md             # Pure-delegation control plane (Agent-only, Opus)
 │   ├── briefer.md                 # Context reader and situational analyst (Haiku)
@@ -409,6 +440,21 @@ claude-coordinator/
 │   ├── scribe.md                  # Lightweight state writer (Haiku)
 │   ├── intent-validator.md        # Validates work vs. original user intent (Opus)
 │   └── learning-extractor.md      # Analyzes outputs + JSONL transcripts for learnings (Opus)
+├── schemas/                       # Canonical JSON Schema contracts for agent outputs
+│   ├── README.md
+│   ├── worker-output.schema.json
+│   ├── worker-refactor-output.schema.json
+│   ├── worker-test-output.schema.json
+│   ├── worker-investigation-output.schema.json
+│   ├── reviewer-output.schema.json
+│   ├── intent-validator-output.schema.json
+│   ├── learning-extractor-output.schema.json
+│   ├── briefer-output.schema.json
+│   ├── planner-output.schema.json
+│   ├── ui-tester-output.schema.json
+│   ├── ux-tester-output.schema.json
+│   ├── system-tester-output.schema.json
+│   └── scribe-output.schema.json
 ├── templates/
 │   ├── .worktreeinclude              # Files to copy into agent worktrees (env, local configs)
 │   ├── docs/

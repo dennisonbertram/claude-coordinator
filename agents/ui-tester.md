@@ -84,53 +84,63 @@ Gemini's multimodal vision is particularly strong at spatial reasoning and layou
 
 ## Output Contract (MANDATORY)
 
+Return a single JSON object conforming to the schema at `schemas/ui-tester-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
+
+### Canonical shape
+
+```json
+{
+  "screens_tested": [
+    { "screen": "Login", "url_or_route": "/login", "desktop_ok": true, "mobile_ok": false, "screenshot_paths": ["/tmp/login-desktop.png", "/tmp/login-mobile.png"] },
+    { "screen": "Settings", "url_or_route": "/settings", "desktop_ok": true, "mobile_ok": true }
+  ],
+  "visual_issues": {
+    "critical": [
+      {
+        "title": "Submit button overlaps footer on mobile",
+        "screen": "Login",
+        "element": "form.login button[type=submit]",
+        "problem": "At 375px viewport the button overlaps the footer by 14px, making it unclickable in some browsers",
+        "screenshot_path": "/tmp/login-mobile.png"
+      }
+    ],
+    "major": [],
+    "minor": []
+  },
+  "design_standards": {
+    "layout_quality": "acceptable",
+    "visual_consistency": "good",
+    "modern_feel": "good",
+    "responsiveness": "poor",
+    "overall": "acceptable"
+  },
+  "console_errors": [],
+  "gemini_31_external_review": {
+    "submitted": true,
+    "screenshots_count": 4,
+    "notable_findings": [
+      "Confirmed the button/footer overlap on mobile (matches Critical Finding 1)"
+    ],
+    "dismissed_findings": [
+      { "finding": "Suggested adding a hover state to static text", "dismissal_reason": "Static text is not interactive; hover state would be misleading." }
+    ]
+  },
+  "verdict": "needs-work",
+  "recommended_fixes": [
+    "Fix mobile layout for Login: clamp form max-height so the submit button never collides with the footer."
+  ]
+}
 ```
-## UI Test Result
 
-### Screens Tested
-(List of screens/pages visited with screenshots taken)
+### Notes on conformance
 
-| Screen | URL/Route | Desktop | Mobile |
-|--------|----------|---------|--------|
-| (name) | (path)   | ✅/❌   | ✅/❌  |
+- Each `design_standards` rating is `good` | `acceptable` | `poor`
+- `verdict` is `pass` | `needs-work` | `fail`
+- `gemini_31_external_review.submitted: false` requires `submission_skip_reason`
+- `visual_issues` always contains `critical`, `major`, `minor` arrays — pass `[]` for empty
+- No extra fields permitted
 
-### Visual Issues Found
-
-#### Critical (blocks release)
-(Elements that are broken, unreadable, or make the app unusable)
-
-1. **[Issue title]**
-   - Screen: (which screen)
-   - Element: (which element)
-   - Problem: (what's wrong visually)
-   - Screenshot: (reference or description)
-
-#### Major (should fix)
-(Elements that look wrong, are misaligned, or violate design standards)
-
-#### Minor (nice to fix)
-(Small visual polish items)
-
-### Design Standards Assessment
-- **Layout quality:** [good | acceptable | poor]
-- **Visual consistency:** [good | acceptable | poor]
-- **Modern feel:** [good | acceptable | poor]
-- **Responsiveness:** [good | acceptable | poor]
-- **Overall visual quality:** [good | acceptable | poor]
-
-### Console Errors
-(Any rendering-related console errors found)
-
-### Gemini 3.1 External Review
-- **Screenshots submitted:** (count)
-- **Notable findings from Gemini:** (list findings you agree with and incorporated)
-- **Dismissed findings:** (list findings you evaluated as false positives or intentional design choices)
-
-### Verdict: [PASS | NEEDS-WORK | FAIL]
-
-### Recommended Fixes
-(Prioritized list of what to fix, in order of visual impact)
-```
+**If your JSON does not validate against `schemas/ui-tester-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Discipline
 

@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/planner-output.schema.json",
+  "title": "Planner Output",
+  "description": "Output contract for the `planner` agent. Produces a complete task breakdown with behavioral test specs, dependencies, and wave-based parallelization plan.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "goal",
+    "approach",
+    "tasks",
+    "behavioral_test_specification",
+    "dependency_graph",
+    "parallelization_plan",
+    "file_boundary_map",
+    "risks",
+    "review_triggers"
+  ],
+  "properties": {
+    "goal": {
+      "type": "string",
+      "description": "1-2 sentence description of what this plan achieves.",
+      "minLength": 1
+    },
+    "approach": {
+      "type": "string",
+      "description": "Brief architectural description — how the pieces fit together, key design decisions.",
+      "minLength": 1
+    },
+    "tasks": {
+      "type": "array",
+      "description": "Ordered task breakdown.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "task_id",
+          "title",
+          "type",
+          "scope",
+          "allowed_files",
+          "forbidden_files",
+          "dependencies",
+          "behavioral_tests",
+          "regression_test_requirements",
+          "estimated_complexity",
+          "risk_level"
+        ],
+        "properties": {
+          "task_id": { "type": "string", "pattern": "^TASK-[A-Z0-9-]+$" },
+          "title":   { "type": "string", "minLength": 1 },
+          "type": {
+            "type": "string",
+            "enum": ["feature", "bugfix", "refactor", "test", "investigation"]
+          },
+          "scope":           { "type": "string", "minLength": 1 },
+          "allowed_files":   { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "forbidden_files": { "type": "array", "items": { "type": "string" } },
+          "dependencies":    { "type": "array", "items": { "type": "string", "pattern": "^TASK-[A-Z0-9-]+$" } },
+          "behavioral_tests": {
+            "type": "array",
+            "description": "User-observable behaviors as testable assertions. Examples: 'When X, then Y'; 'Given state, when action, then outcome'.",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1
+          },
+          "regression_test_requirements": {
+            "type": "string",
+            "description": "What regression test(s) must exist so this task's work can be safely iterated on.",
+            "minLength": 1
+          },
+          "estimated_complexity": { "type": "string", "enum": ["low", "medium", "high"] },
+          "risk_level":           { "type": "string", "enum": ["low", "medium", "high"] }
+        }
+      },
+      "minItems": 1
+    },
+    "behavioral_test_specification": {
+      "type": "array",
+      "description": "Milestone-level behavioral specs. Every behavior MUST be mapped to at least one task.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["spec_id", "behavior", "condition", "expected_outcome", "covered_by_tasks"],
+        "properties": {
+          "spec_id":          { "type": "string", "pattern": "^BT-[A-Z0-9-]+$" },
+          "behavior":         { "type": "string", "minLength": 1 },
+          "condition":        { "type": "string", "minLength": 1 },
+          "expected_outcome": { "type": "string", "minLength": 1 },
+          "covered_by_tasks": { "type": "array", "items": { "type": "string", "pattern": "^TASK-[A-Z0-9-]+$" }, "minItems": 1 }
+        }
+      }
+    },
+    "dependency_graph": {
+      "type": "object",
+      "description": "Edges between tasks. Each entry says which other tasks must complete before the keyed task can start.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "pattern": "^TASK-[A-Z0-9-]+$" }
+      },
+      "propertyNames": { "pattern": "^TASK-[A-Z0-9-]+$" }
+    },
+    "parallelization_plan": {
+      "type": "array",
+      "description": "Waves of tasks that can run concurrently. Each wave depends on prior waves completing.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["wave", "tasks"],
+        "properties": {
+          "wave":  { "type": "integer", "minimum": 1 },
+          "tasks": { "type": "array", "items": { "type": "string", "pattern": "^TASK-[A-Z0-9-]+$" }, "minItems": 1 }
+        }
+      }
+    },
+    "file_boundary_map": {
+      "type": "array",
+      "description": "Which task owns which files. Within a wave, no two tasks may share files.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task_id", "files"],
+        "properties": {
+          "task_id": { "type": "string", "pattern": "^TASK-[A-Z0-9-]+$" },
+          "files":   { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "description": "Potential problems, unknowns, areas that might need re-planning.",
+      "items": { "type": "string" }
+    },
+    "review_triggers": {
+      "type": "array",
+      "description": "Tasks that should trigger a reviewer, with the reason.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task_id", "reason"],
+        "properties": {
+          "task_id": { "type": "string", "pattern": "^TASK-[A-Z0-9-]+$" },
+          "reason":  { "type": "string", "enum": ["security", "user_visible", "concurrency", "api_contract", "high_risk", "insufficient_coverage", "other"] }
+        }
+      }
+    },
+    "analysis_scratchpad": {
+      "type": "string",
+      "description": "Optional. The planner's pre-output reasoning."
+    }
+  }
+}

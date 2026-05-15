@@ -62,64 +62,69 @@ You are not reviewing code quality (that's the reviewer). You are not checking v
 
 ## Output Contract (MANDATORY)
 
+Return a single JSON object conforming to the schema at `schemas/system-tester-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
+
+### Canonical shape
+
+```json
+{
+  "test_suite_results": [
+    { "suite_name": "unit",        "total": 124, "passed": 124, "failed": 0, "skipped": 0, "duration_seconds": 8.4 },
+    { "suite_name": "integration", "total": 18,  "passed": 17,  "failed": 1, "skipped": 0, "duration_seconds": 42.1 },
+    { "suite_name": "e2e",         "total": 6,   "passed": 6,   "failed": 0, "skipped": 0, "duration_seconds": 73.0 }
+  ],
+  "test_failures": [
+    {
+      "test_name": "integration: login → session hydrate race",
+      "suite": "integration",
+      "error_message": "TypeError: Cannot read properties of null (reading 'id')",
+      "likely_cause": "session.user read before hydrate() resolves at middleware.ts:42",
+      "severity": "high"
+    }
+  ],
+  "build_status": {
+    "build":      { "status": "pass" },
+    "typescript": { "status": "pass", "error_count": 0 },
+    "lint":       { "status": "pass", "error_count": 0, "warning_count": 3 }
+  },
+  "skipped_tests": [],
+  "regression_coverage": [
+    { "task_id": "TASK-042", "required_regression_test": "rate-limit honors Retry-After", "test_exists": true,  "meaningful": true },
+    { "task_id": "TASK-051", "required_regression_test": "auth middleware order test",     "test_exists": false, "meaningful": false }
+  ],
+  "coverage_gaps": [
+    {
+      "location": "src/auth/middleware.ts:handleLogin",
+      "what_is_untested": "Token-refresh failure path (catch block at lines 45-52)",
+      "risk": "If token refresh fails, the user sees an unhandled exception",
+      "recommended_test": "Test that injects a failing refresh and asserts a 401 with a user-friendly error message"
+    }
+  ],
+  "integration_points_verified": [
+    { "integration": "Server ↔ Database",     "components": ["server", "postgres"], "status": "pass" },
+    { "integration": "Frontend ↔ Auth API",  "components": ["web", "server"],      "status": "partial", "notes": "Login works; session hydration race fails 1/10 runs." }
+  ],
+  "verdict": "needs-work",
+  "required_actions": [
+    "Fix the session hydration race in middleware.ts:42",
+    "Add the missing regression test for TASK-051 (auth middleware order)"
+  ],
+  "recommended_improvements": [
+    "Add tests for the token-refresh failure path"
+  ]
+}
 ```
-## System Test Result
 
-### Test Suite Results
+### Notes on conformance
 
-| Suite | Tests | Passed | Failed | Skipped | Duration |
-|-------|-------|--------|--------|---------|----------|
-| (name) | (total) | (count) | (count) | (count) | (time) |
-| **Total** | | | | | |
+- Every `build_status` sub-field is required; use `status: "not_applicable"` (TypeScript) or `status: "not_configured"` (lint) or `status: "skipped"` (build) when appropriate
+- `test_failures[].severity` is one of `critical`, `high`, `medium`
+- `integration_points_verified[].status` is `pass`, `fail`, or `partial`
+- `verdict` is `pass`, `needs-work`, or `fail`
+- `skipped_tests` always present; pass `[]` when no tests are skipped
+- No extra fields permitted
 
-### Test Failures
-(For each failure:)
-
-1. **Test:** (full test name)
-   - **Suite:** (which suite)
-   - **Error:** (exact error message)
-   - **Likely cause:** (what's probably wrong)
-   - **Severity:** critical | high | medium
-
-### Build Status
-- **Build:** ✅ Pass / ❌ Fail
-- **TypeScript:** ✅ Pass / ❌ Fail (error count)
-- **Lint:** ✅ Pass / ❌ Fail (warning/error count)
-
-### Skipped Tests
-(List of all skipped/todo tests — these are hidden failures)
-
-| Test | Reason (if stated) | Should It Be Enabled? |
-|------|-------------------|----------------------|
-
-### Regression Coverage
-
-| Task | Required Regression Test | Test Exists? | Meaningful? |
-|------|------------------------|-------------|------------|
-| TASK-XXX | (description) | ✅/❌ | ✅/❌ |
-
-### Coverage Gaps
-(Critical untested code paths, ordered by risk)
-
-1. **[File/function]**
-   - What's untested: (specific path or branch)
-   - Risk: (what could go wrong if this path breaks)
-   - Recommended test: (what test to write)
-
-### Integration Points Verified
-
-| Integration | Components | Status | Notes |
-|------------|-----------|--------|-------|
-| (description) | A ↔ B | ✅/❌ | |
-
-### Verdict: [PASS | NEEDS-WORK | FAIL]
-
-### Required Actions
-(What must be fixed before the system is considered tested)
-
-### Recommended Improvements
-(Additional tests that would improve confidence but aren't blocking)
-```
+**If your JSON does not validate against `schemas/system-tester-output.schema.json`, the coordinator will reject it and re-delegate.**
 
 ## Discipline
 

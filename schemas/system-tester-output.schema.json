@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/system-tester-output.schema.json",
+  "title": "System Tester Output",
+  "description": "Output contract for the `system-tester` agent. Integration and coverage validation — runs the full test suite, build, and lints; cross-references against the behavioral test spec.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "test_suite_results",
+    "test_failures",
+    "build_status",
+    "skipped_tests",
+    "regression_coverage",
+    "coverage_gaps",
+    "integration_points_verified",
+    "verdict",
+    "required_actions",
+    "recommended_improvements"
+  ],
+  "properties": {
+    "test_suite_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["suite_name", "total", "passed", "failed", "skipped"],
+        "properties": {
+          "suite_name":   { "type": "string", "minLength": 1 },
+          "total":        { "type": "integer", "minimum": 0 },
+          "passed":       { "type": "integer", "minimum": 0 },
+          "failed":       { "type": "integer", "minimum": 0 },
+          "skipped":      { "type": "integer", "minimum": 0 },
+          "duration_seconds": { "type": "number", "minimum": 0 }
+        }
+      },
+      "minItems": 1
+    },
+    "test_failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["test_name", "suite", "error_message", "likely_cause", "severity"],
+        "properties": {
+          "test_name":     { "type": "string", "minLength": 1 },
+          "suite":         { "type": "string", "minLength": 1 },
+          "error_message": { "type": "string", "minLength": 1 },
+          "likely_cause":  { "type": "string", "minLength": 1 },
+          "severity":      { "type": "string", "enum": ["critical", "high", "medium"] }
+        }
+      }
+    },
+    "build_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["build", "typescript", "lint"],
+      "properties": {
+        "build": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status":         { "type": "string", "enum": ["pass", "fail", "skipped"] },
+            "error_excerpt":  { "type": "string" }
+          }
+        },
+        "typescript": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "error_count"],
+          "properties": {
+            "status":      { "type": "string", "enum": ["pass", "fail", "not_applicable"] },
+            "error_count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "lint": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "error_count", "warning_count"],
+          "properties": {
+            "status":         { "type": "string", "enum": ["pass", "fail", "not_configured"] },
+            "error_count":    { "type": "integer", "minimum": 0 },
+            "warning_count":  { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "skipped_tests": {
+      "type": "array",
+      "description": "All skipped/todo tests — each is a hidden coverage gap.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["test_name", "should_be_enabled"],
+        "properties": {
+          "test_name":        { "type": "string", "minLength": 1 },
+          "reason":           { "type": "string", "description": "Reason given in the skip directive, if stated." },
+          "should_be_enabled":{ "type": "boolean", "description": "Tester's judgment." }
+        }
+      }
+    },
+    "regression_coverage": {
+      "type": "array",
+      "description": "For each completed task, whether a meaningful regression test exists.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task_id", "required_regression_test", "test_exists", "meaningful"],
+        "properties": {
+          "task_id":                  { "type": "string", "pattern": "^TASK-[A-Z0-9-]+$" },
+          "required_regression_test": { "type": "string", "minLength": 1 },
+          "test_exists":              { "type": "boolean" },
+          "meaningful":               { "type": "boolean", "description": "Would the test fail if the underlying change were reverted?" }
+        }
+      }
+    },
+    "coverage_gaps": {
+      "type": "array",
+      "description": "Critical untested code paths, ordered by risk.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["location", "what_is_untested", "risk", "recommended_test"],
+        "properties": {
+          "location":         { "type": "string", "description": "File or function." },
+          "what_is_untested": { "type": "string", "minLength": 1 },
+          "risk":             { "type": "string", "minLength": 1 },
+          "recommended_test": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "integration_points_verified": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["integration", "components", "status"],
+        "properties": {
+          "integration": { "type": "string", "minLength": 1 },
+          "components":  { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 2 },
+          "status":      { "type": "string", "enum": ["pass", "fail", "partial"] },
+          "notes":       { "type": "string" }
+        }
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "needs-work", "fail"]
+    },
+    "required_actions": {
+      "type": "array",
+      "description": "What must be fixed before the system is considered tested.",
+      "items": { "type": "string" }
+    },
+    "recommended_improvements": {
+      "type": "array",
+      "description": "Additional tests that would improve confidence but aren't blocking.",
+      "items": { "type": "string" }
+    }
+  }
+}

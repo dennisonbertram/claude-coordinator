@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/intent-validator-output.schema.json",
+  "title": "Intent Validator Output",
+  "description": "Output contract for the `intent-validator` agent. Validates that completed work matches the user's original intent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "original_intent",
+    "what_was_built",
+    "intent_match",
+    "gap_analysis",
+    "user_confirmation",
+    "verdict",
+    "recommended_actions"
+  ],
+  "properties": {
+    "original_intent": {
+      "type": "string",
+      "description": "1-2 sentence summary of what the user wanted (from docs/context/command-intent.md).",
+      "minLength": 1
+    },
+    "what_was_built": {
+      "type": "string",
+      "description": "1-2 sentence summary of what was actually implemented.",
+      "minLength": 1
+    },
+    "intent_match": {
+      "type": "string",
+      "enum": ["full", "partial", "mismatch"]
+    },
+    "gap_analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope_gaps", "interpretation_drift", "assumption_gaps", "ux_gaps", "completeness"],
+      "properties": {
+        "scope_gaps": {
+          "type": "array",
+          "description": "What was requested but not built. Empty array if fully covered.",
+          "items": { "type": "string" }
+        },
+        "interpretation_drift": {
+          "type": "array",
+          "description": "Where implementation diverged from the user's likely mental model. Empty if aligned.",
+          "items": { "type": "string" }
+        },
+        "assumption_gaps": {
+          "type": "array",
+          "description": "Assumptions made that the user hasn't confirmed.",
+          "items": { "type": "string" }
+        },
+        "ux_gaps": {
+          "type": "array",
+          "description": "Ways the implementation might surprise or confuse the user.",
+          "items": { "type": "string" }
+        },
+        "completeness": {
+          "type": "string",
+          "description": "Would the user consider this 'done'? What would they immediately ask about next?",
+          "minLength": 1
+        }
+      }
+    },
+    "user_confirmation": {
+      "type": "object",
+      "description": "Questions asked of the user and their answers. Empty arrays if no questions were needed.",
+      "additionalProperties": false,
+      "required": ["asked"],
+      "properties": {
+        "asked": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["question", "answer"],
+            "properties": {
+              "question": { "type": "string", "minLength": 1 },
+              "answer":   { "type": "string", "description": "The user's response, recorded verbatim or summarized faithfully." }
+            }
+          }
+        }
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["satisfied", "needs-work", "needs-discussion"]
+    },
+    "recommended_actions": {
+      "type": "array",
+      "description": "If verdict is needs-work: specific tasks to close gaps. If needs-discussion: what to clarify. If satisfied: empty array.",
+      "items": { "type": "string" }
+    },
+    "analysis_scratchpad": {
+      "type": "string",
+      "description": "Optional. The validator's pre-output reasoning."
+    }
+  }
+}

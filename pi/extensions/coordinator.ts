@@ -225,6 +225,7 @@ function resultContractText(taskType: string): string {
         : "",
     '  "risks_or_blockers": string[], "recommended_next_step": string',
     "}",
+    "Commit hashes and test output must be REAL (taken from git log and the actual runner) — every claim is verified against the repository and fabrication fails the gate.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -260,6 +261,36 @@ function gateError(taskType: string, out: any): string | null {
 async function sh(pi: ExtensionAPI, cwd: string, cmd: string): Promise<{ ok: boolean; out: string }> {
   const r = await pi.exec("bash", ["-lc", `cd ${JSON.stringify(cwd)} && ${cmd}`], { timeout: 60000 });
   return { ok: r.code === 0, out: (r.stdout + r.stderr).trim() };
+}
+
+// Workers can fabricate success (observed live: invented commit hashes + fake test
+// output). Never trust the JSON's git claims — verify them against the worktree.
+async function verifyGitClaims(pi: ExtensionAPI, taskType: string, out: any, workdir: string, baseSha: string): Promise<string | null> {
+  if (!out || out.status !== "complete") return null;
+  const ahead = await sh(pi, workdir, `git rev-list --count ${baseSha}..HEAD`);
+  if (!ahead.ok || parseInt(ahead.out, 10) === 0) {
+    return "status is 'complete' but the worktree has NO commits — commit your actual work; do not fabricate results";
+  }
+  if (TDD_TYPES.has(taskType)) {
+    const c = out.audit_trail_commits ?? {};
+    const hashes: string[] = [];
+    for (const k of ["red", "green", "regression"]) {
+      const hash = String(c[k]?.hash ?? "").trim();
+      hashes.push(hash);
+      const exists = await sh(pi, workdir, `git cat-file -e ${JSON.stringify(hash)}^{commit}`);
+      if (!exists.ok) {
+        return `claimed ${k}-commit '${hash}' does not exist in the repository — report the REAL hashes from git log, never invented ones`;
+      }
+      const reachable = await sh(pi, workdir, `git merge-base --is-ancestor ${JSON.stringify(hash)} HEAD`);
+      if (!reachable.ok) {
+        return `claimed ${k}-commit '${hash}' is not in the branch history (was it amended away?) — the red → green → regression trail must survive on the branch`;
+      }
+    }
+    if (new Set(hashes).size !== 3) {
+      return "red, green, and regression must be three DISTINCT commits — do not squash or amend the TDD trail";
+    }
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -305,9 +336,12 @@ export default function coordinator(pi: ExtensionAPI) {
         const mutating = t.type !== "investigation";
         let workdir = cwd;
         let branch: string | null = null;
+        let baseSha = "";
         if (mutating && isGit) {
+          baseSha = (await sh(pi, cwd, "git rev-parse HEAD")).out;
           branch = `wt/${t.task_id}`;
           workdir = path.join(cwd, ".pi-coord", "wt", t.task_id);
+          await sh(pi, cwd, `git worktree remove --force ${JSON.stringify(workdir)}; git branch -D ${branch}`); // stale leftovers from prior runs
           const add = await sh(pi, cwd, `git worktree add -b ${branch} ${JSON.stringify(workdir)} HEAD`);
           if (!add.ok) return { task: t, gate_error: `worktree setup failed: ${add.out.slice(0, 300)}`, output: null, usage: sumUsage([]), workdir: cwd, merged: false };
         }
@@ -321,8 +355,10 @@ export default function coordinator(pi: ExtensionAPI) {
         ].join("\n");
 
         onUpdate?.({ content: [{ type: "text", text: `⏳ ${t.task_id} (${route[t.type]})` }] });
+        const fullGate = async (r: WorkerResult) =>
+          r.jsonError ?? gateError(t.type, r.json) ?? (branch ? await verifyGitClaims(pi, t.type, r.json, workdir, baseSha) : null);
         let r = await runWorker({ agent, task: taskText, cwd: workdir, signal });
-        let err = r.jsonError ?? gateError(t.type, r.json);
+        let err = await fullGate(r);
         if (err) {
           onUpdate?.({ content: [{ type: "text", text: `↻ ${t.task_id} rejected (${err}) — retrying once` }] });
           r = await runWorker({
@@ -331,7 +367,7 @@ export default function coordinator(pi: ExtensionAPI) {
             cwd: workdir,
             signal,
           });
-          err = r.jsonError ?? gateError(t.type, r.json);
+          err = await fullGate(r);
         }
 
         let merged = false;
@@ -430,7 +466,7 @@ export default function coordinator(pi: ExtensionAPI) {
         onUpdate?.({ content: [{ type: "text", text: `⏳ consolidating ${deduped.length} findings` }] });
         const cons = await runWorker({
           agent: reviewer,
-          modelOverride: reviewer.model?.replace(/:.*/, ":medium"),
+          modelOverride: reviewer.model?.includes(":") ? reviewer.model.replace(/:[a-z]+$/, ":medium") : reviewer.model,
           task:
             `Cluster these code-review findings by ROOT CAUSE (same defect under different titles = one cluster; distinct defects stay separate; every index appears exactly once).\n` +
             `Findings: ${JSON.stringify(deduped)}\n` +
@@ -453,11 +489,13 @@ export default function coordinator(pi: ExtensionAPI) {
       }
 
       onUpdate?.({ content: [{ type: "text", text: `⏳ verifying ${clusters.length} root cause(s)` }] });
+      // Tier the thinking level by severity — only when the agent's model declares one
+      // (models without a :thinking suffix, e.g. gpt-4o, are used unchanged).
       const tier: Record<string, string> = { critical: ":xhigh", high: ":xhigh", medium: ":high", low: ":medium", info: ":medium" };
       const verified = await mapConcurrent(clusters, 4, (c: any) =>
         runWorker({
           agent: reviewer,
-          modelOverride: reviewer.model ? reviewer.model.replace(/:[a-z]+$/, "") + (tier[c.severity] ?? ":high") : undefined,
+          modelOverride: reviewer.model?.includes(":") ? reviewer.model.replace(/:[a-z]+$/, tier[c.severity] ?? ":high") : reviewer.model,
           task:
             `Adversarially verify this code-review finding in ${cwd}. Default stance: skepticism — try to REFUTE it. Read the actual code; confirm only with concrete evidence of a real defect.\n` +
             `${JSON.stringify(c)}\n` +

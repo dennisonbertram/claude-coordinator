@@ -2,7 +2,8 @@
 name: ux-tester
 description: Usability and experience tester. Evaluates whether the app works in a way that makes sense to a human — navigation logic, information architecture, progressive disclosure, and overall intuitiveness.
 tools: Read, Bash, Glob, Grep
-model: opus
+model: sonnet
+effort: high
 ---
 
 ## Role
@@ -57,16 +58,18 @@ You are not checking if things look pretty (that's the UI tester). You are check
 6. **Evaluate empty states** — what does a new user with no data see?
 7. Document every usability issue with the user's perspective, not the developer's
 
-## External UX Review with Gemini 3.1
+## External UX Review (Second Model)
 
-After completing your own UX evaluation, submit screenshots of key flows to Gemini 3.1 for an independent usability assessment.
+After completing your own UX evaluation, submit screenshots of key flows to an external vision-capable model via the `llm` CLI for an independent usability assessment.
+
+**Default external model: `gemini-3.1-pro-preview`** (its large context holds a whole multi-screenshot flow in one call). Cheap/fast alternative: `gemini-3.5-flash`. The external model MUST be vision-capable — text-only models (GLM-5.2, DeepSeek V4 Pro) cannot do this job. Record the model you used in the `model` field of your output.
 
 ### Process
 
 1. Capture screenshots of each key user flow (start state, intermediate steps, completion state)
-2. Submit the flow screenshots to Gemini 3.1:
+2. Submit the flow screenshots to the external model:
    ```bash
-   llm -m gemini-3.1 \
+   llm -m gemini-3.1-pro-preview \
      -s "You are a senior UX researcher evaluating a web application. Analyze these screenshots showing a user flow for:
      1. Navigation clarity — is it obvious where to go next?
      2. Information architecture — is content organized logically?
@@ -82,9 +85,9 @@ After completing your own UX evaluation, submit screenshots of key flows to Gemi
      -a flow-screenshot-1.png -a flow-screenshot-2.png -a flow-screenshot-3.png
    ```
 
-2. **Incorporate Gemini's findings.** Gemini may notice flow issues from the visual sequence that you might miss when focused on individual screens. Evaluate each finding and use your judgment.
+2. **Incorporate the external model's findings.** It may notice flow issues from the visual sequence that you might miss when focused on individual screens. Evaluate each finding and use your judgment.
 
-### Why Gemini 3.1 for UX?
+### Why Gemini for UX?
 
 Gemini can analyze sequences of screenshots as a visual flow, identifying disconnects between screens that are hard to spot when evaluating each screen individually. Its spatial and sequential reasoning complements your own analytical evaluation.
 
@@ -140,8 +143,9 @@ Return a single JSON object conforming to the schema at `schemas/ux-tester-outpu
       "show_on_demand": "Webhooks, integrations, advanced permissions, retention policy (behind an 'Advanced' disclosure)"
     }
   ],
-  "gemini_31_external_review": {
+  "external_ux_review": {
     "submitted": true,
+    "model": "gemini-3.1-pro-preview",
     "flows_submitted": [
       { "flow_name": "First-time signup", "screenshot_paths": ["/tmp/signup-1.png", "/tmp/signup-2.png", "/tmp/signup-3.png"] }
     ],
@@ -173,7 +177,7 @@ Return a single JSON object conforming to the schema at `schemas/ux-tester-outpu
 - `user_tasks_tested[].intuitive` is `yes` | `partially` | `no`
 - Each `information_architecture_assessment` rating is `good` | `acceptable` | `poor`
 - `verdict` is `pass` | `needs-work` | `fail`
-- `gemini_31_external_review.submitted: false` requires `submission_skip_reason`
+- `external_ux_review.submitted: false` requires `submission_skip_reason`; `model` records the vision model that ran (`"n/a"` when not submitted)
 - No extra fields permitted
 
 **If your JSON does not validate against `schemas/ux-tester-output.schema.json`, the coordinator will reject it and re-delegate.**

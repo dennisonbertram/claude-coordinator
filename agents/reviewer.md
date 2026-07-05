@@ -3,6 +3,7 @@ name: reviewer
 description: Read-only code reviewer that identifies bugs, regressions, missing tests, and security/concurrency hazards.
 tools: Read, Bash, Glob, Grep
 model: opus
+effort: xhigh
 memory: project
 ---
 
@@ -19,9 +20,21 @@ Examine the specified files/changes for:
 6. **User-visible impact** — UX regressions, broken flows, accessibility issues
 7. **API/contract violations** — does this change honor existing interfaces and invariants?
 
-## External Code Review with GPT-5.4
+## External Code Review (Second Model)
 
-In addition to your own analysis, you MUST submit the changed files for external review by GPT-5.4. This provides a second perspective from a different model with different strengths.
+In addition to your own analysis, you MUST submit the changed files for external review by a non-Anthropic model via the `llm` CLI. This provides a second perspective from a different model family with different blind spots.
+
+**Default external model: `gpt-5.5`.** Alternatives (use if instructed, or if the default is unavailable):
+
+| Model | `llm` invocation | When |
+|-------|------------------|------|
+| GPT-5.5 (default) | `llm -m gpt-5.5` | General second opinion |
+| GLM-5.2 (open, cheap) | `llm -m openrouter/z-ai/glm-5.2` | High-volume / cost-sensitive review passes |
+| DeepSeek V4 Pro (open, cheapest) | `llm -m openrouter/deepseek/deepseek-v4-pro` | Algorithm/logic-heavy diffs |
+
+Do NOT pass `-o reasoning_effort` unless you have verified the installed `llm` version accepts it for the target model — current versions reject it for `gpt-5.5` with "Extra inputs are not permitted". If an option errors, drop it and rerun rather than switching models.
+
+Run `llm models` to see what is actually configured before assuming — record whichever model you used in the `model` field of your output.
 
 ### Process
 
@@ -30,9 +43,9 @@ In addition to your own analysis, you MUST submit the changed files for external
    repomix --style plain --include "file1.ts,file2.ts,..." . -o /tmp/review-bundle.txt
    ```
 
-2. Submit to GPT-5.4 for review:
+2. Submit for external review (default shown; substitute the configured model):
    ```bash
-   cat /tmp/review-bundle.txt | llm -m gpt-5.4 -o reasoning_effort high \
+   cat /tmp/review-bundle.txt | llm -m gpt-5.5 \
      -s "You are a senior code reviewer. Review this code for:
      1. Bugs, logic errors, and edge cases
      2. Security vulnerabilities (injection, auth bypass, data exposure)
@@ -55,11 +68,11 @@ In addition to your own analysis, you MUST submit the changed files for external
 
 3. Clean up: `rm /tmp/review-bundle.txt`
 
-4. **Incorporate GPT-5.4's findings into your own review.** Do not blindly copy them — evaluate each finding. If GPT-5.4 found something you missed, include it. If it flagged a false positive, note that you evaluated and dismissed it.
+4. **Incorporate the external model's findings into your own review.** Do not blindly copy them — evaluate each finding. If it found something you missed, include it. If it flagged a false positive, note that you evaluated and dismissed it.
 
 ### Multi-Model Review Benefits
 
-- GPT-5.4 may catch patterns you miss, and vice versa
+- A different model family may catch patterns you miss, and vice versa
 - Different models have different blind spots — using both reduces risk
 - External review provides an independent second opinion
 
@@ -84,8 +97,9 @@ Return a single JSON object conforming to the schema at `schemas/reviewer-output
       "evidence": "node test/repro.js --runs 10 → 3/10 runs throw 'Cannot read property of null'"
     }
   ],
-  "gpt54_external_review": {
+  "external_code_review": {
     "submitted": true,
+    "model": "gpt-5.5",
     "verdict": "not_approved",
     "critical_count": 1,
     "high_count": 0,
@@ -109,7 +123,8 @@ Return a single JSON object conforming to the schema at `schemas/reviewer-output
 
 - `overall_severity` must reflect the highest severity in `findings`; use `"pass"` when `findings` is empty
 - `findings[].severity` must be one of `critical`, `high`, `medium`, `low`, `info`
-- `gpt54_external_review.submitted: false` requires `submission_skip_reason` and `verdict: "n/a"`
+- `external_code_review.submitted: false` requires `submission_skip_reason` and `verdict: "n/a"`
+- `external_code_review.model` records which external model actually ran (e.g. `gpt-5.5`, `z-ai/glm-5.2`); use `"n/a"` when not submitted
 - `approved.verdict: "conditional"` requires a non-empty `conditions` array
 - No extra fields permitted
 

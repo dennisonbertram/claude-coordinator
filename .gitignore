@@ -1,0 +1,3 @@
+# Local Claude Code session state (agent memory, worktrees, locks)
+.claude/
+node_modules/

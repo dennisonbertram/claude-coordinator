@@ -11,17 +11,17 @@
 
 Claude Coordinator is a set of Claude Code agent definitions that turn Claude into a **structured project manager**. Instead of having a single Claude session try to do everything, this system uses a team of specialized agents working under a pure-delegation control plane:
 
-- **Coordinator** — The control plane. Plans work, maintains state, delegates everything, and writes context for the next session. Its only tool is `Agent`. It does not read or write files directly.
+- **Coordinator** (Fable) — The control plane. Plans work, maintains state, delegates everything, and writes context for the next session. Its only tool is `Agent`. It does not read or write files directly.
 - **Briefer** (Haiku) — Reads context files and returns structured briefings. Cheap, fast.
 - **Planner** (Sonnet) — Produces task breakdowns with behavioral-test specifications.
 - **Worker** (Sonnet) — Strict TDD implementation for `feature` / `bugfix` tasks. Produces an auditable red → green → regression commit trail.
 - **Worker-Refactor** (Sonnet) — Behavior-preserving refactors. Existing tests must pass before and after.
 - **Worker-Test** (Sonnet) — Adds tests to existing untested code. Mutation-checks its own tests.
 - **Worker-Investigation** (Sonnet) — Read-only research. Returns structured findings; writes no code.
-- **Reviewer** (Opus) — Read-only code reviewer with severity ratings, plus an external GPT-5.4 review pass.
+- **Reviewer** (Opus) — Read-only code reviewer with severity ratings, plus an external second-model review pass (default GPT-5.5).
 - **UI / UX / System Testers** — Validate the built product visually, experientially, and functionally.
 - **Intent-Validator** (Opus) — Final quality gate. Compares what was built against the user's original intent. Runs foreground so it can ask the user questions.
-- **Learning-Extractor** (Opus) — Analyzes task outputs, review findings, AND sub-agent JSONL transcripts to surface code learnings and process learnings (retries, dead ends, scope drift).
+- **Learning-Extractor** (Sonnet) — Analyzes task outputs, review findings, AND sub-agent JSONL transcripts to surface code learnings and process learnings (retries, dead ends, scope drift).
 - **Scribe** (Haiku) — Writes all state files. Cheap, fast, precise.
 
 The coordinator maintains state across sessions using two mechanisms: machine-readable files in `.coord/` and human-readable files in `docs/`. This means a project can be picked up exactly where it left off, even after days away.
@@ -41,10 +41,10 @@ startup → intake → plan → delegate → integrate → review → test → p
 | **startup** | Briefer reads `.coord/` and `docs/` to orient the session. Fresh sessions add `.coord/` to `.gitignore` via scribe. |
 | **intake** | Capture the user's request as a command-intent doc (verbatim words, interpreted intent, success criteria). User confirms before proceeding. |
 | **plan** | Planner produces a task breakdown with behavioral test specs. User approves before delegation. |
-| **delegate** | Coordinator routes each task to the right worker (worker, worker-refactor, worker-test, worker-investigation) and spawns them in isolated worktrees. No file overlap between concurrent workers. |
-| **integrate** | Collect worker results. Validate output contracts, including audit-trail commit hashes for TDD task types. Reject and re-delegate anything missing the required evidence. |
-| **review** | Reviewer (Opus + GPT-5.4) checks risky changes. Critical/high findings block progress. |
-| **test** | UI tester, UX tester, and system tester validate the built product. UI/UX only run for user-facing changes. |
+| **delegate** | Coordinator submits the task batch to the `coord-implement` workflow, which routes each task to the right worker (worker, worker-refactor, worker-test, worker-investigation) in isolated worktrees. No file overlap between concurrent workers. |
+| **integrate** | The workflow returns schema-validated, TDD-gated, already-recorded results. The coordinator judges failures: re-plan, or retry with an escalated model. |
+| **review** | The `coord-review` workflow fans out coverage-first finders (correctness, security, concurrency, tests + external second opinion), then adversarially verifies every finding. Critical/high findings block progress. |
+| **test** | The `coord-verify-product` workflow runs UI tester, UX tester, and system tester in parallel. UI/UX only run for user-facing changes. |
 | **promote-learnings** | Learning-extractor analyzes task artifacts AND sub-agent transcripts to surface code + process learnings. Scribe records accepted candidates to `.coord/learning-inbox.jsonl`. |
 | **validate** | Intent-validator (foreground) compares the work against the original intent doc. May ask the user clarifying questions. |
 | **close** | Scribe updates the task ledger and writes a context packet for the next session. Coordinator summarizes for the user. |
@@ -383,24 +383,82 @@ Install this file into your project as `.claude/settings.json` (or merge it with
 
 ---
 
-## Customization
+## Model & Effort Policy
 
-### Change model assignments
+Every agent pins a model tier **and** a reasoning-effort level in its frontmatter. The assignments follow three rules:
+
+1. **Sonnet is the default execution tier.** Claude Sonnet 5 delivers near-Opus quality on coding and agentic work at $3/$15 per MTok versus Opus 4.8's $5/$25 (introductory $2/$10 through 2026-08-31). All implementation, testing, and analysis roles run Sonnet.
+2. **Opus is reserved for roles where reasoning quality is the deliverable.** Code review (Opus 4.8 still clearly leads Sonnet 5 on deep-coding benchmarks such as SWE-bench Pro) and intent validation (one bounded pass per session, so the premium is cheap in absolute terms).
+3. **Fable runs the control plane.** The coordinator holds no file contents — briefer reads, scribe writes, workers implement — so its token profile is thin, and its job (decomposition, routing, resolving conflicting subagent reports, long-horizon coherence across many delegation rounds, parallel sub-agent management) is exactly what Claude Fable 5 is strongest at. It is the one role where $10/$50 per MTok buys capability the cheaper tiers don't have.
+
+| Agent | Model | Effort | Rationale |
+|-------|-------|--------|-----------|
+| coordinator | fable | high | Judgment-only control plane; thin token profile; long-horizon orchestration is Fable's documented strength |
+| reviewer | opus | xhigh | Bug-finding recall is the deliverable; `xhigh` is Anthropic's recommended setting for Opus coding/agentic work |
+| intent-validator | opus | high | Human-intent judgment, once per session |
+| planner | sonnet | high | Intelligence-sensitive, one pass per plan |
+| worker | sonnet | high | Correctness-sensitive TDD implementation |
+| worker-investigation | sonnet | high | Root-cause reasoning |
+| ux-tester | sonnet | high | Judgment-flavored evaluation, backed by an external second opinion |
+| learning-extractor | sonnet | high | Token-heavy transcript reading with moderate synthesis — the cost is in the reading, not the reasoning |
+| worker-refactor | sonnet | medium | Behavior-preserving; the test suite gates correctness |
+| worker-test | sonnet | medium | Bounded, characterization-style work |
+| system-tester | sonnet | medium | Runs suites and reports; mostly mechanical |
+| ui-tester | sonnet | medium | Browser-driven visual checks |
+| briefer | haiku | low | Mechanical reads (Haiku 4.5 has no effort parameter; the field is a forward-compatible no-op) |
+| scribe | haiku | low | Mechanical writes (same note) |
+
+### Effort guidance
+
+Effort is the primary depth/cost control on current models (default `high` on Fable 5, Sonnet 5, and Opus 4.8). Two mappings worth knowing, both from Anthropic's docs: Sonnet 5 at `medium` is roughly Sonnet 4.6 at `high`, and Sonnet 5 at `high` is roughly Sonnet 4.6 at `max` — so the `medium` agents above are not "dumbed down" relative to the pre-Sonnet-5 defaults.
+
+### Known traps
+
+- **Don't crank Sonnet to `xhigh`/`max` to rescue a hard task — escalate the model instead.** Sonnet 5's tokenizer produces ~30% more tokens for the same text (Anthropic-documented), and at `xhigh` its adaptive-thinking spend can push real per-task cost to or above Opus 4.8 at `high` for similar or worse quality (practitioner-reported; Anthropic documents the mechanism but publishes no crossover figure). The coordinator escalates hard tasks to `opus` per-invocation instead.
+- **Sonnet 5 follows effort literally.** At `low`/`medium` it scopes work to exactly what was asked and can under-think complex problems. Raise effort or escalate the model; don't prompt around it.
+- **Fable's thinking is always on**; effort is its only depth control. Anthropic claims Fable at low effort can exceed prior models at `xhigh` — a vendor claim without a published benchmark table, so treat it as a prior, not a guarantee.
+
+### Changing assignments
 
 Edit the frontmatter in `agents/*.md`:
 
 ```yaml
 ---
-model: sonnet   # Change to haiku, sonnet, or opus
+model: sonnet   # haiku, sonnet, opus, or fable
+effort: high    # low, medium, high, xhigh, or max
 ---
 ```
 
-The defaults are:
-- `opus` — coordinator, reviewer, ux-tester, intent-validator, learning-extractor
-- `sonnet` — worker, worker-refactor, worker-test, worker-investigation, planner, ui-tester, system-tester
-- `haiku` — briefer, scribe
+If the Fable premium isn't warranted for a routine project, drop the coordinator to `model: opus` — you lose some long-horizon coherence and delegation quality but keep the architecture intact. The coordinator can also override any subagent's model per invocation (`Agent({ model: "opus", ... })`) for genuinely hard tasks.
 
-Using `sonnet` for the coordinator saves cost if your sessions are long, but you give up some reasoning quality on complex planning problems.
+---
+
+## Workflow Layer
+
+The coordinator is a judgment layer, not a job runner. The mechanical fan-out phases — implement, review, test — run as deterministic **Workflow scripts** shipped in `workflows/` and installed to your project's `.claude/workflows/` by `install.sh --init-project`.
+
+| Workflow | Replaces | What it does |
+|----------|----------|--------------|
+| `coord-implement` | delegate + integrate choreography | Pipelines the task batch: routes each task to the right worker variant, isolates worktrees, enforces structured output at the tool layer, runs the deterministic TDD-evidence gate (audit-trail commit hashes, non-empty red-phase output) with one evidence-driven retry, records `.coord/tasks/` artifacts and the ledger via scribe |
+| `coord-review` | single-reviewer pass | Parallel coverage-first finders per dimension (correctness, security, concurrency, tests, external second opinion), mechanical dedupe, semantic root-cause consolidation, then tiered adversarial verification (Opus `xhigh` for critical/high, Opus `high` for medium, Sonnet for low/info), overall verdict |
+| `coord-verify-product` | serial tester spawns | System tester always; UI + UX testers in parallel for user-facing changes; combined verdict |
+
+### Why this matters for cost
+
+Without workflows, every task costs the coordinator a full round trip *in its own context*: spawn worker → read its JSON → spawn a validator → maybe reject and re-delegate → spawn scribe. Each round trip lands in the Fable coordinator's context at the most expensive per-token rate in the system. With workflows, the coordinator submits a batch and receives **one structured result per phase**:
+
+- Schema-validation retries happen at the tool layer against the Sonnet worker — the coordinator never sees malformed output
+- The TDD-evidence gate and re-delegation loop run as plain JavaScript, costing zero model tokens
+- Artifact recording and ledger updates happen inside the workflow via Haiku scribes
+- Failed workflow runs are resumable: completed agent calls return cached results, so a retry only re-runs what changed
+
+What stays with the coordinator (by design): user-facing gates, plan judgment, weighing blocked/failed results, and the foreground intent-validator — workflows run in background and cannot talk to the user.
+
+Judgment agents (planner, intent-validator, learning-extractor) and single tasks still run as direct `Agent` spawns; the classic per-agent loop remains documented in `agents/coordinator.md` as the fallback when workflows aren't installed.
+
+---
+
+## Customization
 
 ### Add custom phases
 
@@ -426,20 +484,24 @@ claude-coordinator/
 │   ├── claude-coordinator         # CLI launcher (symlinked to PATH by install.sh)
 │   └── coord-validate             # JSON Schema validator for agent outputs
 ├── agents/
-│   ├── coordinator.md             # Pure-delegation control plane (Agent-only, Opus)
+│   ├── coordinator.md             # Pure-delegation control plane (Agent-only, Fable)
 │   ├── briefer.md                 # Context reader and situational analyst (Haiku)
 │   ├── planner.md                 # Task breakdown with behavioral-test specs (Sonnet)
 │   ├── worker.md                  # Strict TDD implementation with red/green/regression commits (Sonnet)
 │   ├── worker-refactor.md         # Behavior-preserving refactors (Sonnet)
 │   ├── worker-test.md             # Coverage uplift with mutation-checked tests (Sonnet)
 │   ├── worker-investigation.md    # Read-only research, returns findings (Sonnet)
-│   ├── reviewer.md                # Read-only code reviewer + GPT-5.4 external review (Opus)
-│   ├── ui-tester.md               # Visual quality inspector + Gemini 3.1 review (Sonnet)
-│   ├── ux-tester.md               # Usability evaluator + Gemini 3.1 review (Opus)
+│   ├── reviewer.md                # Read-only code reviewer + external second-model review (Opus)
+│   ├── ui-tester.md               # Visual quality inspector + external vision-model review (Sonnet)
+│   ├── ux-tester.md               # Usability evaluator + external vision-model review (Sonnet)
 │   ├── system-tester.md           # Integration and coverage validator (Sonnet)
 │   ├── scribe.md                  # Lightweight state writer (Haiku)
 │   ├── intent-validator.md        # Validates work vs. original user intent (Opus)
-│   └── learning-extractor.md      # Analyzes outputs + JSONL transcripts for learnings (Opus)
+│   └── learning-extractor.md      # Analyzes outputs + JSONL transcripts for learnings (Sonnet)
+├── workflows/                     # Deterministic fan-out scripts (installed to .claude/workflows/)
+│   ├── coord-implement.js         # delegate+integrate: route, isolate, validate, TDD-gate, record
+│   ├── coord-review.js            # review: parallel finders → dedupe → adversarial verify → verdict
+│   └── coord-verify-product.js    # test: system + UI + UX testers in parallel
 ├── schemas/                       # Canonical JSON Schema contracts for agent outputs
 │   ├── README.md
 │   ├── worker-output.schema.json
@@ -471,6 +533,10 @@ claude-coordinator/
 │       ├── task-ledger.json
 │       ├── learning-inbox.jsonl
 │       └── context-packet.md
+├── test-harness/                  # Workflow-layer test harness: fixture repo, task contracts,
+│                                  #   metrics collector, and measured results (RESULTS.md)
+├── docs/
+│   └── 2026-07-modernization.md   # What changed in the 2026-07 modernization and the measured savings
 ├── coordinator-settings.json      # Claude Code permissions for the coordinator agent
 ├── install.sh                     # Manual installer / project scaffolding
 ├── README.md
@@ -497,9 +563,9 @@ This plugin can be distributed via Claude Code marketplaces. See the [Claude Cod
 
 ## FAQ
 
-**Can I use Sonnet for the coordinator instead of Opus?**
+**Do I have to run the coordinator on Fable?**
 
-Yes. Edit the `model: opus` line in `agents/coordinator.md` to `model: sonnet`. Sonnet is faster and cheaper. Use Opus when you need more careful reasoning on complex planning problems.
+No. Edit the `model: fable` line in `agents/coordinator.md` to `model: opus` (or `sonnet`). Fable is the default because the coordinator is a thin, judgment-only role — long-horizon coherence and parallel-subagent management are its documented strengths, and the coordinator never holds file contents, so the per-token premium applies to a small token volume. For routine projects, Opus is a reasonable cost saving; Sonnet works but gives up planning-judgment quality where it matters most.
 
 **Can I skip the review phase?**
 
@@ -538,22 +604,22 @@ The coordinator is a pure control plane. Its only tool is `Agent`. It never read
 
 ### The Agent Team
 
-| Agent | Model | Tools | Role |
-|-------|-------|-------|------|
-| coordinator | Opus | Agent | Pure control plane — routes, decides, delegates |
-| briefer | Haiku | Read, Glob, Grep | Reads context, returns structured briefings |
-| planner | Sonnet | Read, Glob, Grep, Agent | Analyzes codebase, produces task breakdowns with behavioral test specs |
-| worker | Sonnet | Full toolset | Strict TDD for `feature` and `bugfix` tasks. Produces audit-trail commits (red → green → regression). |
-| worker-refactor | Sonnet | Full toolset | Behavior-preserving refactors. No new tests; existing suite must pass before and after. |
-| worker-test | Sonnet | Full toolset | Adds tests to existing code. Mutation-checks its own tests to ensure they catch real breakage. |
-| worker-investigation | Sonnet | Read, Bash, Glob, Grep | Read-only research. Returns structured findings; no code edits, no commits. |
-| reviewer | Opus | Read, Bash, Glob, Grep | Code review with severity ratings (+ GPT-5.4 external review) |
-| ui-tester | Sonnet | Read, Bash, Glob, Grep | Visual quality inspector. Browser automation. (+ Gemini 3.1 visual review) |
-| ux-tester | Opus | Read, Bash, Glob, Grep | Usability evaluator. Browser automation. (+ Gemini 3.1 UX review) |
-| system-tester | Sonnet | Read, Bash, Glob, Grep | Integration validator. Full test suites, regression coverage, integration points. |
-| scribe | Haiku | Read, Write | All state writes (.coord/, docs/) |
-| intent-validator | Opus | Read, Glob, Grep | Validates completed work against user's original intent. Foreground only — asks user questions. |
-| learning-extractor | Opus | Read, Glob, Grep, Bash | Analyzes task artifacts, reviewer findings, intent-validator output, and sub-agent JSONL transcripts. Surfaces both code learnings and process learnings (retries, dead ends, scope drift). |
+| Agent | Model | Effort | Tools | Role |
+|-------|-------|--------|-------|------|
+| coordinator | Fable | high | Agent | Pure control plane — routes, decides, delegates |
+| briefer | Haiku | low | Read, Glob, Grep | Reads context, returns structured briefings |
+| planner | Sonnet | high | Read, Glob, Grep, Agent | Analyzes codebase, produces task breakdowns with behavioral test specs |
+| worker | Sonnet | high | Full toolset | Strict TDD for `feature` and `bugfix` tasks. Produces audit-trail commits (red → green → regression). |
+| worker-refactor | Sonnet | medium | Full toolset | Behavior-preserving refactors. No new tests; existing suite must pass before and after. |
+| worker-test | Sonnet | medium | Full toolset | Adds tests to existing code. Mutation-checks its own tests to ensure they catch real breakage. |
+| worker-investigation | Sonnet | high | Read, Bash, Glob, Grep | Read-only research. Returns structured findings; no code edits, no commits. |
+| reviewer | Opus | xhigh | Read, Bash, Glob, Grep | Code review with severity ratings (+ external second-model review, default GPT-5.5) |
+| ui-tester | Sonnet | medium | Read, Bash, Glob, Grep | Visual quality inspector. Browser automation. (+ external vision-model review) |
+| ux-tester | Sonnet | high | Read, Bash, Glob, Grep | Usability evaluator. Browser automation. (+ external vision-model review) |
+| system-tester | Sonnet | medium | Read, Bash, Glob, Grep | Integration validator. Full test suites, regression coverage, integration points. |
+| scribe | Haiku | low | Read, Write | All state writes (.coord/, docs/) |
+| intent-validator | Opus | high | Read, Glob, Grep | Validates completed work against user's original intent. Foreground only — asks user questions. |
+| learning-extractor | Sonnet | high | Read, Glob, Grep, Bash | Analyzes task artifacts, reviewer findings, intent-validator output, and sub-agent JSONL transcripts. Surfaces both code learnings and process learnings (retries, dead ends, scope drift). |
 
 ### Session Flow
 
@@ -569,7 +635,7 @@ delegate:  Workers execute in parallel (worktree-isolated)
              test           → worker-test    (mutation-checked tests)
              investigation  → worker-investigation (read-only findings)
 integrate: Validate worker output, check audit-trail commits exist
-review:    Reviewer checks code quality (+ GPT-5.4 external pass)
+review:    Reviewer checks code quality (+ external second-model pass)
 test:      UI tester + UX tester + System tester validate the product
 promote:   Learning-extractor analyzes outputs + transcripts → Scribe records learnings
 validate:  Intent-validator confirms work matches user's intent
@@ -636,17 +702,22 @@ UI and UX testing only runs for tasks with user-facing changes. Backend-only wor
 
 ### Multi-Model Review
 
-The experimental architecture uses multiple AI models for review, leveraging each model's strengths:
+The architecture uses multiple AI models for review, leveraging each model family's strengths. External-model choices live in the agent prompts (not in schema field names), so they can be bumped without breaking output contracts — each output records which `model` actually ran.
 
-| Agent | Primary Model | External Model | Why |
-|-------|--------------|---------------|-----|
-| **Reviewer** | Claude Opus | GPT-5.4 | Different models catch different code patterns. GPT-5.4 provides an independent second opinion on security, correctness, and edge cases. |
-| **UI Tester** | Claude Sonnet | Gemini 3.1 | Gemini's multimodal vision excels at spatial reasoning and layout analysis — ideal for catching visual issues in screenshots. |
-| **UX Tester** | Claude Opus | Gemini 3.1 | Gemini can analyze screenshot sequences as visual flows, identifying navigation disconnects between screens. |
+| Agent | Primary Model | External Model (default) | Why |
+|-------|--------------|--------------------------|-----|
+| **Reviewer** | Claude Opus | GPT-5.5 | Different model families catch different code patterns; an independent second opinion on security, correctness, and edge cases. |
+| **UI Tester** | Claude Sonnet | Gemini 3.1 Pro (`gemini-3.1-pro-preview`) | Gemini's multimodal vision excels at spatial reasoning and layout analysis — ideal for catching visual issues in screenshots. |
+| **UX Tester** | Claude Sonnet | Gemini 3.1 Pro (`gemini-3.1-pro-preview`) | Gemini can hold a whole multi-screenshot flow in one context and spot navigation disconnects between screens. |
+
+**Cheap/fast alternative tier** (documented in the agent prompts; swap in when volume matters more than peak capability):
+
+- Code second opinion: **GLM-5.2** (`llm -m openrouter/z-ai/glm-5.2`) — open-weight, reported above GPT-5.5 on SWE-bench Pro at a fraction of the cost (practitioner-reported benchmark; verify against your own diffs). **DeepSeek V4 Pro** (`llm -m openrouter/deepseek/deepseek-v4-pro`) is the cheapest option and strongest on algorithm-heavy diffs.
+- Visual/UX review: **Gemini 3.5 Flash** (`gemini-3.5-flash`) — same vision support at a fraction of the Pro price. The open text-only models (GLM-5.2, DeepSeek V4 Pro) cannot do visual review — no vision input.
 
 External reviews are incorporated into each agent's own findings — not blindly copied. Each agent evaluates external findings and may dismiss false positives.
 
-**Prerequisites:** The `llm` CLI must be installed with GPT-5.4 and Gemini 3.1 models configured. Install via `pip install llm` and add model plugins as needed.
+**Prerequisites:** The `llm` CLI (`pip install llm`) with: an OpenAI key for `gpt-5.5` (built into core `llm`); `llm install llm-gemini` + Gemini key for the vision models; optionally `llm install llm-openrouter` + OpenRouter key for GLM-5.2 / DeepSeek V4 Pro. Note: the legacy `llm-deepseek` plugin does not expose V4 models — use OpenRouter or an OpenAI-compatible endpoint config. If a model is missing, agents record `submitted: false` with a skip reason rather than failing.
 
 ### Command Intent Capture
 
@@ -667,16 +738,23 @@ This closes the gap between "task completed" and "user satisfied."
 
 **Pro:**
 - Coordinator context stays pristine — it only sees what it asked for
-- Each agent is optimized for its role and model tier (Haiku for cheap reads/writes, Opus for hard reasoning)
+- Each agent is optimized for its role and model tier (Haiku for mechanical I/O, Sonnet for execution, Opus for review judgment, Fable for coordination)
 - Clean separation of concerns: reads, writes, planning, implementation, review, and learning are fully decoupled
 - Audit-trail commits make TDD compliance verifiable from git history
 - Scribe (Haiku) keeps state-write costs minimal
 
 **Con:**
-- More round-trips — every read or write is an agent spawn
+- More round-trips than a single-agent approach (mitigated by the workflow layer, which batches the implement/review/test fan-outs into one structured result per phase)
 - Higher total token usage than a single-agent approach
 - More complex orchestration to reason about and debug
 - TDD audit trail produces more commits per task (3 for feature/bugfix, 2 for test, 1 for refactor)
+
+---
+
+## Further Reading
+
+- **[docs/2026-07-modernization.md](docs/2026-07-modernization.md)** — the 2026-07 modernization: model × effort policy, the workflow layer, external-model refresh, and the measured savings (review workflow cost halved; Opus spend −84%).
+- **[test-harness/README.md](test-harness/README.md)** and **[test-harness/RESULTS.md](test-harness/RESULTS.md)** — how the workflow layer is tested and what the live runs measured.
 
 ---
 

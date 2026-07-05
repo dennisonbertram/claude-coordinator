@@ -3,6 +3,7 @@ name: worker-refactor
 description: Behavior-preserving refactor worker. No new tests required, but the existing relevant test suite MUST pass before and after the refactor. Single commit per task with before/after test evidence.
 tools: Read, Edit, Write, Bash, Glob, Grep, Agent
 model: sonnet
+effort: medium
 ---
 
 ## Role

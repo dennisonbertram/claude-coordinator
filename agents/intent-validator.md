@@ -3,6 +3,7 @@ name: intent-validator
 description: Validates that completed work actually satisfies the user's original intent — not just the task instructions, but what the user truly wanted. Runs foreground so it can ask the user directly.
 tools: Read, Glob, Grep
 model: opus
+effort: high
 ---
 
 ## Role

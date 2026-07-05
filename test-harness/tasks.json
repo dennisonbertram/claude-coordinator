@@ -1,0 +1,46 @@
+{
+  "comment": "Task contracts for the workflow test harness. Pass as args.tasks to coord-implement with repo_root pointing at the instantiated fixture. File scopes are disjoint by design (see README caveat on shared-repo concurrency).",
+  "tasks": [
+    {
+      "task_id": "TASK-001",
+      "type": "feature",
+      "contract": {
+        "title": "Add percentile(values, p) to stats-lib",
+        "type": "feature",
+        "scope": "Create src/percentile.js exporting percentile(values, p): p is 0-100; use linear interpolation between closest ranks; sort a copy of the input, never mutate it. Add tests in test/percentile.test.js.",
+        "allowed_files": ["src/percentile.js", "test/percentile.test.js"],
+        "forbidden_files": ["src/stats.js", "test/stats.test.js", "package.json"],
+        "dependencies": [],
+        "behavioral_tests": [
+          "When percentile([1,2,3,4,5], 50) is called, it returns 3",
+          "When percentile([1,2,3,4], 100) is called, it returns 4",
+          "When percentile([1,2,3,4], 0) is called, it returns 1",
+          "When percentile([10,20], 50) is called, it returns 15 (linear interpolation)",
+          "Given p below 0 or above 100, percentile throws a RangeError",
+          "Given an empty array, percentile throws a RangeError"
+        ],
+        "regression_test_requirements": "test/percentile.test.js must cover interpolation between ranks, both boundaries (p=0, p=100), invalid p, and empty input, so future changes to the interpolation method are caught.",
+        "output_contract": "Return the load-bearing result object per the coord-implement workflow schema."
+      }
+    },
+    {
+      "task_id": "TASK-002",
+      "type": "bugfix",
+      "contract": {
+        "title": "median() returns the wrong value for even-length arrays",
+        "type": "bugfix",
+        "scope": "median([1,2,3,4]) currently returns 3; the statistical median of an even-length array is the average of the two middle values (2.5). Fix src/stats.js median() to average the two middle elements for even-length input. Odd-length behavior must not change.",
+        "allowed_files": ["src/stats.js", "test/stats.test.js"],
+        "forbidden_files": ["src/percentile.js", "test/percentile.test.js", "package.json"],
+        "dependencies": [],
+        "behavioral_tests": [
+          "When median([1,2,3,4]) is called, it returns 2.5",
+          "When median([4,1,3,2]) is called, it returns 2.5 (order-independent)",
+          "When median([3,1,2]) is called, it still returns 2 (odd-length regression)"
+        ],
+        "regression_test_requirements": "test/stats.test.js must permanently cover the even-length case so the truncation bug cannot silently return.",
+        "output_contract": "Return the load-bearing result object per the coord-implement workflow schema."
+      }
+    }
+  ]
+}

@@ -2,7 +2,8 @@
 name: learning-extractor
 description: Analyzes session work — task outputs, reviewer findings, intent-validator output, AND sub-agent JSONL transcripts — to surface learnings. Captures both successful patterns and process struggles (retries, dead ends, scope drift, confusion) so future sessions improve.
 tools: Read, Glob, Grep, Bash
-model: opus
+model: sonnet
+effort: high
 ---
 
 ## Role
@@ -16,7 +17,7 @@ You do not write to durable docs directly. You produce **structured learning can
 The coordinator passes you paths to several kinds of artifacts:
 
 1. **Task artifacts** — `.coord/tasks/TASK-XXX.json` files (worker outputs, files changed, test results, audit-trail commit hashes)
-2. **Review artifacts** — `.coord/reviews/REVIEW-XXX.json` files (reviewer findings with severity, GPT-5.4 verdicts)
+2. **Review artifacts** — `.coord/reviews/REVIEW-XXX.json` files (reviewer findings with severity, external-model verdicts)
 3. **Intent-validator output** — if a validation pass occurred
 4. **Sub-agent JSONL transcripts** — the raw conversation transcripts of each sub-agent that ran during the session. These are the most valuable input — they reveal **process**, not just results.
 5. **Git log** (optional) — for sessions where workers produced commit trails

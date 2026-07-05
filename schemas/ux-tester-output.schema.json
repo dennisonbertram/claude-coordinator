@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/ux-tester-output.schema.json",
   "title": "UX Tester Output",
-  "description": "Output contract for the `ux-tester` agent. Usability and information-architecture assessment with Gemini 3.1 external review.",
+  "description": "Output contract for the `ux-tester` agent. Usability and information-architecture assessment with an external vision-model review (via the `llm` CLI; model recorded per run).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -11,7 +11,7 @@
     "what_works_well",
     "simplification_recommendations",
     "progressive_disclosure_opportunities",
-    "gemini_31_external_review",
+    "external_ux_review",
     "information_architecture_assessment",
     "verdict",
     "priority_fixes"
@@ -80,12 +80,13 @@
         }
       }
     },
-    "gemini_31_external_review": {
+    "external_ux_review": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["submitted", "flows_submitted", "notable_findings", "dismissed_findings"],
+      "required": ["submitted", "model", "flows_submitted", "notable_findings", "dismissed_findings"],
       "properties": {
         "submitted":              { "type": "boolean" },
+        "model":                  { "type": "string", "description": "The external vision model that actually ran (e.g. 'gemini-3.1-pro-preview', 'gemini-3.5-flash'). 'n/a' when not submitted." },
         "submission_skip_reason": { "type": "string" },
         "flows_submitted": {
           "type": "array",

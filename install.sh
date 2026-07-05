@@ -158,6 +158,19 @@ if [ "$INIT_PROJECT" = true ]; then
     fi
   done
 
+  # .claude/workflows/ — named workflows the coordinator invokes
+  # (always refreshed: these are code shipped by this repo, not user state)
+  mkdir -p .claude/workflows
+  for wf in coord-implement coord-review coord-verify-product; do
+    src="$SCRIPT_DIR/workflows/${wf}.js"
+    if [ -f "$src" ]; then
+      cp "$src" ".claude/workflows/${wf}.js"
+      echo "  Installed workflow: .claude/workflows/${wf}.js"
+    else
+      echo "  WARNING: missing workflow file: $src"
+    fi
+  done
+
   echo ""
   echo "Project initialized."
 fi

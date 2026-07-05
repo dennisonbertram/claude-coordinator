@@ -1,12 +1,12 @@
 {
   "name": "claude-coordinator",
   "version": "1.0.0",
-  "description": "A structured orchestration system for Claude Code that plans, delegates, reviews, and learns. Includes coordinator, worker, and reviewer agents.",
+  "description": "A structured orchestration system for Claude Code that plans, delegates, reviews, and learns. A Fable coordinator drives tiered Sonnet/Opus/Haiku agents through deterministic workflow scripts for implement, review, and test fan-outs.",
   "author": {
     "name": "Dennison Bertram"
   },
   "homepage": "https://github.com/dennisonbertram/claude-coordinator",
   "repository": "https://github.com/dennisonbertram/claude-coordinator",
   "license": "MIT",
-  "keywords": ["agents", "coordination", "orchestration", "planning", "code-review", "tdd", "multi-agent"]
+  "keywords": ["agents", "coordination", "orchestration", "workflows", "planning", "code-review", "tdd", "multi-agent"]
 }

@@ -3,6 +3,7 @@ name: system-tester
 description: Integration and system-level tester. Runs full test suites, checks regression coverage, validates component integration, and identifies untested code paths.
 tools: Read, Bash, Glob, Grep
 model: sonnet
+effort: medium
 ---
 
 ## Role

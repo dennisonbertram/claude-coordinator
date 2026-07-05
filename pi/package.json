@@ -1,0 +1,18 @@
+{
+  "name": "pi-coordinator",
+  "version": "0.1.0",
+  "description": "Multi-agent software-factory workflows for the Pi coding harness: a coordinator tool that fans out to specialized worker/reviewer/tester agents with TDD gates and schema-validated JSON results. Pi-flavored port of claude-coordinator.",
+  "keywords": ["pi-package", "agents", "orchestration", "workflows", "tdd", "code-review"],
+  "license": "MIT",
+  "author": { "name": "Dennison Bertram" },
+  "repository": "https://github.com/dennisonbertram/claude-coordinator",
+  "pi": {
+    "extensions": ["./extensions"],
+    "prompts": ["./prompts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*",
+    "typebox": "*"
+  }
+}

@@ -97,6 +97,15 @@ docs/
 
 ## Installation
 
+Claude Coordinator ships in **two flavors with completely different install paths**:
+
+| Flavor | Runs on | Install with | Docs |
+|--------|---------|--------------|------|
+| **Claude Code plugin** (this repo root) | Claude Code — coordinator agent on Fable + `Agent`/`Workflow` tools | `claude plugin install …` or `./install.sh` (below) | this README |
+| **Pi package** (`pi/` directory) | [Pi](https://pi.dev) — your own session is the coordinator; `coord_*` tools spawn `pi` worker processes | `pi install /path/to/claude-coordinator/pi [-l]` — Pi's package manager; **never** `install.sh`, nothing touches `~/.claude/` | [`pi/README.md`](pi/README.md) |
+
+The rest of this section covers the **Claude Code** flavor.
+
 ### Plugin install (recommended)
 
 ```bash
@@ -533,6 +542,10 @@ claude-coordinator/
 │       ├── task-ledger.json
 │       ├── learning-inbox.jsonl
 │       └── context-packet.md
+├── pi/                            # Pi-flavored coordinator (a Pi Package — see pi/README.md;
+│   ├── extensions/coordinator.ts  #   installed via `pi install`, NOT install.sh)
+│   ├── agents/                    #   11 agents in Pi frontmatter format
+│   └── prompts/                   #   /coord-* phase prompt templates
 ├── test-harness/                  # Workflow-layer test harness: fixture repo, task contracts,
 │                                  #   metrics collector, and measured results (RESULTS.md)
 ├── docs/
@@ -755,6 +768,7 @@ This closes the gap between "task completed" and "user satisfied."
 
 - **[docs/2026-07-modernization.md](docs/2026-07-modernization.md)** — the 2026-07 modernization: model × effort policy, the workflow layer, external-model refresh, and the measured savings (review workflow cost halved; Opus spend −84%).
 - **[test-harness/README.md](test-harness/README.md)** and **[test-harness/RESULTS.md](test-harness/RESULTS.md)** — how the workflow layer is tested and what the live runs measured.
+- **[docs/pi-workflow-delivery.md](docs/pi-workflow-delivery.md)** and **[pi/README.md](pi/README.md)** — the Pi harness research and the Pi-flavored coordinator package built from it.
 
 ---
 

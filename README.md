@@ -11,14 +11,14 @@
 
 Claude Coordinator is a set of Claude Code agent definitions that turn Claude into a **structured project manager**. Instead of having a single Claude session try to do everything, this system uses a team of specialized agents working under a pure-delegation control plane:
 
-- **Coordinator** (Fable) — The control plane. Plans work, maintains state, delegates everything, and writes context for the next session. Its only tool is `Agent`. It does not read or write files directly.
+- **Coordinator** (Fable) — The control plane. Plans work, maintains state, delegates everything, and writes context for the next session. Its tools are `Agent`, `Workflow`, `SendMessage`, `TaskCreate`/`TaskUpdate`/`TaskList`, `Skill`, and `Read` — where `Read` is for spot-verification only (a final diff, a cited line, a worker's claim); bulk reads still go through the briefer. It does not write files directly. At startup it loads the `/efficient-fable` skill, whose delegation economics govern every spawn: Fable tokens are reserved for decomposition, conflict resolution, and final judgment; token-heavy work goes to cheaper subagents; handoff packets are written as if the subagent has no chat context; subagent reports are treated as leads, not facts.
 - **Briefer** (Haiku) — Reads context files and returns structured briefings. Cheap, fast.
-- **Planner** (Sonnet) — Produces task breakdowns with behavioral-test specifications.
+- **Planner** (Opus) — Produces task breakdowns with behavioral-test specifications.
 - **Worker** (Sonnet) — Strict TDD implementation for `feature` / `bugfix` tasks. Produces an auditable red → green → regression commit trail.
 - **Worker-Refactor** (Sonnet) — Behavior-preserving refactors. Existing tests must pass before and after.
 - **Worker-Test** (Sonnet) — Adds tests to existing untested code. Mutation-checks its own tests.
 - **Worker-Investigation** (Sonnet) — Read-only research. Returns structured findings; writes no code.
-- **Reviewer** (Opus) — Read-only code reviewer with severity ratings, plus an external second-model review pass (default GPT-5.5).
+- **Reviewer** (Opus) — Read-only code reviewer with severity ratings. For tricky changes, gets a second opinion from GPT-5.6 Sol at xhigh reasoning via the codex MCP server (if installed).
 - **UI / UX / System Testers** — Validate the built product visually, experientially, and functionally.
 - **Intent-Validator** (Opus) — Final quality gate. Compares what was built against the user's original intent. Runs foreground so it can ask the user questions.
 - **Learning-Extractor** (Sonnet) — Analyzes task outputs, review findings, AND sub-agent JSONL transcripts to surface code learnings and process learnings (retries, dead ends, scope drift).
@@ -39,12 +39,12 @@ startup → intake → plan → delegate → integrate → review → test → p
 | Phase | What happens |
 |-------|-------------|
 | **startup** | Briefer reads `.coord/` and `docs/` to orient the session. Fresh sessions add `.coord/` to `.gitignore` via scribe. |
-| **intake** | Capture the user's request as a command-intent doc (verbatim words, interpreted intent, success criteria). User confirms before proceeding. |
+| **intake** | Capture the user's request as an intent doc (verbatim words, interpreted intent, success criteria). User confirms before proceeding. |
 | **plan** | Planner produces a task breakdown with behavioral test specs. User approves before delegation. |
-| **delegate** | Coordinator submits the task batch to the `coord-implement` workflow, which routes each task to the right worker (worker, worker-refactor, worker-test, worker-investigation) in isolated worktrees. No file overlap between concurrent workers. |
+| **delegate** | Coordinator authors an inline implement-batch Workflow script that routes each task to the right worker (worker, worker-refactor, worker-test, worker-investigation) in isolated worktrees. No file overlap between concurrent workers. |
 | **integrate** | The workflow returns schema-validated, TDD-gated, already-recorded results. The coordinator judges failures: re-plan, or retry with an escalated model. |
-| **review** | The `coord-review` workflow fans out coverage-first finders (correctness, security, concurrency, tests + external second opinion), then adversarially verifies every finding. Critical/high findings block progress. |
-| **test** | The `coord-verify-product` workflow runs UI tester, UX tester, and system tester in parallel. UI/UX only run for user-facing changes. |
+| **review** | Coordinator authors an inline review workflow that fans out coverage-first finders (correctness, security, concurrency, tests), then adversarially verifies every finding. For tricky changes with codex MCP available, a GPT-5.6 Sol second-opinion pass is included. Critical/high findings block progress. |
+| **test** | Coordinator authors an inline verify-product workflow: system tester always; UI + UX testers in parallel for user-facing changes. |
 | **promote-learnings** | Learning-extractor analyzes task artifacts AND sub-agent transcripts to surface code + process learnings. Scribe records accepted candidates to `.coord/learning-inbox.jsonl`. |
 | **validate** | Intent-validator (foreground) compares the work against the original intent doc. May ask the user clarifying questions. |
 | **close** | Scribe updates the task ledger and writes a context packet for the next session. Coordinator summarizes for the user. |
@@ -68,11 +68,11 @@ Working memory. Ephemeral, structured, machine-readable.
 ├── context-packet.md         # Compressed session context for continuity
 ├── tasks/
 │   └── TASK-XXX.json         # Per-task artifacts: output, files changed, test results
-├── reviews/
-│   └── REVIEW-XXX.json       # Per-review artifacts: findings, severity, recommendations
-└── milestones/
-    └── M-XXX.json            # Milestone summaries: scope, tasks, learnings promoted
+└── reviews/
+    └── REVIEW-XXX.json       # Written ONLY when findings triggered re-delegation; clean passes are noted in the ledger
 ```
+
+Milestone progress lives in `context-packet.md` — there is no separate milestones directory.
 
 ### 2. GitHub Issues — Durable Public Tracker
 
@@ -85,12 +85,11 @@ Persists across sessions. Authoritative record of intent, practices, and plans.
 ```
 docs/
 ├── context/
-│   ├── current-intent.md     # What we're building and why
+│   ├── intent.md             # What we're building and why — the user's captured intent, updated at each intake
 │   ├── repo-practices.md     # Conventions, patterns, and rules
 │   └── known-issues.md       # Known problems, workarounds, tech debt
 └── plans/
-    ├── active-plan.md        # Current execution plan with task breakdown
-    └── execution-brief.md    # Scoped brief for the current milestone
+    └── active-plan.md        # Current execution plan with task breakdown
 ```
 
 ---
@@ -275,21 +274,13 @@ schemas/
 
 Earlier versions of this project used `### Markdown Headings` as the output contract. Models drifted on heading capitalization, section ordering, and prose-vs-structured content — and "did the worker conform?" became an interpretive check rather than a mechanical one. JSON Schema fixes all three:
 
-- Validation is deterministic. `bin/coord-validate` either succeeds or points at the offending field.
+- Validation is deterministic. The schema check either succeeds or points at the offending field.
 - "Conform to this schema" puts the model in structured-output mode, which is measurably less prone to drift than "fill in this template."
 - The output goes straight into `.coord/tasks/TASK-XXX.json` with no Markdown-to-JSON translation step.
 
 ### Validating an output
 
-```bash
-# From a file
-bin/coord-validate worker .coord/tasks/TASK-042.json
-
-# From stdin
-cat output.json | bin/coord-validate reviewer -
-```
-
-Exit codes: `0` = valid, `1` = invalid (validator prints the failing field path), `2` = usage error or no validator installed. The script prefers `ajv-cli`, falls back to `check-jsonschema`, then to Python's `jsonschema` package.
+Validation happens at the tool layer: the coordinator passes the relevant schema via the Workflow `schema` option when it authors a workflow script (or states the schema in a direct Agent prompt). Non-conforming output is rejected and retried against the worker — the coordinator never sees malformed output. The files in `schemas/` remain the canonical contract for each agent's output.
 
 ### Audit-trail commits (worker only)
 
@@ -348,7 +339,7 @@ The coordinator captures knowledge in a two-stage pipeline:
 After each wave of completed tasks, the coordinator spawns a **learning-extractor**. The extractor analyzes:
 
 - `.coord/tasks/TASK-XXX.json` — task artifacts (worker outputs, commit hashes, test results)
-- `.coord/reviews/REVIEW-XXX.json` — reviewer findings
+- `.coord/reviews/REVIEW-XXX.json` — reviewer findings (present only when findings triggered re-delegation; clean passes are noted in the ledger)
 - The intent-validator's output (if available)
 - **Sub-agent JSONL transcripts** — the raw conversation transcripts of each sub-agent run. These reveal *process* — retries, dead ends, scope drift, confusion — not just results.
 
@@ -376,7 +367,7 @@ This keeps the docs accurate and up-to-date without requiring manual maintenance
 
 ## Coordinator Permissions
 
-The coordinator's frontmatter (`tools: Agent`) already restricts it to delegation only — it cannot edit, write, or run shell commands. As a belt-and-suspenders guard, `coordinator-settings.json` also denies those tools at the permissions layer:
+The coordinator's frontmatter (`tools: Agent, Workflow, SendMessage, TaskCreate, TaskUpdate, TaskList, Skill, Read`) already restricts it to delegation plus control-plane tools — it cannot edit, write, or run shell commands. `Read` is for spot-verification only (final diffs, cited lines, worker claims); bulk reads still go through the briefer. The Task tools are live in-session visibility only — `.coord/task-ledger.json` remains the durable source of truth. As a belt-and-suspenders guard, `coordinator-settings.json` also denies the write/exec tools at the permissions layer:
 
 ```json
 {
@@ -397,18 +388,18 @@ Install this file into your project as `.claude/settings.json` (or merge it with
 Every agent pins a model tier **and** a reasoning-effort level in its frontmatter. The assignments follow three rules:
 
 1. **Sonnet is the default execution tier.** Claude Sonnet 5 delivers near-Opus quality on coding and agentic work at $3/$15 per MTok versus Opus 4.8's $5/$25 (introductory $2/$10 through 2026-08-31). All implementation, testing, and analysis roles run Sonnet.
-2. **Opus is reserved for roles where reasoning quality is the deliverable.** Code review (Opus 4.8 still clearly leads Sonnet 5 on deep-coding benchmarks such as SWE-bench Pro) and intent validation (one bounded pass per session, so the premium is cheap in absolute terms).
-3. **Fable runs the control plane.** The coordinator holds no file contents — briefer reads, scribe writes, workers implement — so its token profile is thin, and its job (decomposition, routing, resolving conflicting subagent reports, long-horizon coherence across many delegation rounds, parallel sub-agent management) is exactly what Claude Fable 5 is strongest at. It is the one role where $10/$50 per MTok buys capability the cheaper tiers don't have.
+2. **Opus is reserved for roles where reasoning quality is the deliverable.** Code review (Opus 4.8 still clearly leads Sonnet 5 on deep-coding benchmarks such as SWE-bench Pro), planning (judgment-heavy in the same way as review and intent validation, and one bounded pass per plan), and intent validation (one bounded pass per session, so the premium is cheap in absolute terms).
+3. **Fable runs the control plane.** The coordinator holds no file contents — briefer reads, scribe writes, workers implement — so its token profile is thin, and its job (decomposition, routing, resolving conflicting subagent reports, long-horizon coherence across many delegation rounds, parallel sub-agent management) is exactly what Claude Fable 5 is strongest at. It is the one role where $10/$50 per MTok buys capability the cheaper tiers don't have. The coordinator loads the `/efficient-fable` skill at startup to enforce this economically: Fable tokens for decomposition, conflict resolution, and final judgment; cheap subagents for token-heavy work; handoff packets written as if the subagent has no chat context; subagent reports treated as leads, not facts.
 
 | Agent | Model | Effort | Rationale |
 |-------|-------|--------|-----------|
 | coordinator | fable | high | Judgment-only control plane; thin token profile; long-horizon orchestration is Fable's documented strength |
 | reviewer | opus | xhigh | Bug-finding recall is the deliverable; `xhigh` is Anthropic's recommended setting for Opus coding/agentic work |
 | intent-validator | opus | high | Human-intent judgment, once per session |
-| planner | sonnet | high | Intelligence-sensitive, one pass per plan |
+| planner | opus | high | Judgment-heavy like review and intent validation; one pass per plan |
 | worker | sonnet | high | Correctness-sensitive TDD implementation |
 | worker-investigation | sonnet | high | Root-cause reasoning |
-| ux-tester | sonnet | high | Judgment-flavored evaluation, backed by an external second opinion |
+| ux-tester | sonnet | high | Judgment-flavored evaluation |
 | learning-extractor | sonnet | high | Token-heavy transcript reading with moderate synthesis — the cost is in the reading, not the reasoning |
 | worker-refactor | sonnet | medium | Behavior-preserving; the test suite gates correctness |
 | worker-test | sonnet | medium | Bounded, characterization-style work |
@@ -444,26 +435,26 @@ If the Fable premium isn't warranted for a routine project, drop the coordinator
 
 ## Workflow Layer
 
-The coordinator is a judgment layer, not a job runner. The mechanical fan-out phases — implement, review, test — run as deterministic **Workflow scripts** shipped in `workflows/` and installed to your project's `.claude/workflows/` by `install.sh --init-project`.
+The coordinator is a judgment layer, not a job runner. For the mechanical fan-out phases — implement, review, test — the coordinator **authors an inline Workflow script per phase** using `agent()`/`pipeline()`/`parallel()`, passing task data via `args` and each agent's output schema via the Workflow `schema` option so validation happens at the tool layer. No pre-installed workflow scripts are required.
 
-| Workflow | Replaces | What it does |
-|----------|----------|--------------|
-| `coord-implement` | delegate + integrate choreography | Pipelines the task batch: routes each task to the right worker variant, isolates worktrees, enforces structured output at the tool layer, runs the deterministic TDD-evidence gate (audit-trail commit hashes, non-empty red-phase output) with one evidence-driven retry, records `.coord/tasks/` artifacts and the ledger via scribe |
-| `coord-review` | single-reviewer pass | Parallel coverage-first finders per dimension (correctness, security, concurrency, tests, external second opinion), mechanical dedupe, semantic root-cause consolidation, then tiered adversarial verification (Opus `xhigh` for critical/high, Opus `high` for medium, Sonnet for low/info), overall verdict |
-| `coord-verify-product` | serial tester spawns | System tester always; UI + UX testers in parallel for user-facing changes; combined verdict |
+| Phase script | Replaces | What it does |
+|--------------|----------|--------------|
+| implement batch | delegate + integrate choreography | Pipelines the task batch: routes each task to the right worker variant, isolates worktrees, enforces structured output at the tool layer via the `schema` option, runs the deterministic TDD-evidence gate (audit-trail commit hashes, non-empty red-phase output) in plain JS with one evidence-driven retry, records `.coord/tasks/` artifacts and the ledger via scribe |
+| review | single-reviewer pass | Parallel coverage-first finders per dimension (correctness, security, concurrency, tests), dedupe in plain JS, then adversarial verification of every surviving finding, overall verdict |
+| verify-product | serial tester spawns | System tester always; UI + UX testers in parallel for user-facing changes; combined verdict |
 
 ### Why this matters for cost
 
-Without workflows, every task costs the coordinator a full round trip *in its own context*: spawn worker → read its JSON → spawn a validator → maybe reject and re-delegate → spawn scribe. Each round trip lands in the Fable coordinator's context at the most expensive per-token rate in the system. With workflows, the coordinator submits a batch and receives **one structured result per phase**:
+Without workflows, every task costs the coordinator a full round trip *in its own context*: spawn worker → read its JSON → spawn a validator → maybe reject and re-delegate → spawn scribe. Each round trip lands in the Fable coordinator's context at the most expensive per-token rate in the system. With an inline workflow, the coordinator submits a batch and receives **one structured result per phase**:
 
-- Schema-validation retries happen at the tool layer against the Sonnet worker — the coordinator never sees malformed output
+- Schema-validation retries happen at the tool layer against the Sonnet worker (via the `schema` option) — the coordinator never sees malformed output
 - The TDD-evidence gate and re-delegation loop run as plain JavaScript, costing zero model tokens
 - Artifact recording and ledger updates happen inside the workflow via Haiku scribes
 - Failed workflow runs are resumable: completed agent calls return cached results, so a retry only re-runs what changed
 
-What stays with the coordinator (by design): user-facing gates, plan judgment, weighing blocked/failed results, and the foreground intent-validator — workflows run in background and cannot talk to the user.
+What stays with the coordinator (by design): user-facing gates, plan judgment, weighing blocked/failed results, and the foreground intent-validator — workflows run in background and cannot talk to the user. Agents spawn in background by default; the intent-validator is always spawned with `run_in_background: false`.
 
-Judgment agents (planner, intent-validator, learning-extractor) and single tasks still run as direct `Agent` spawns; the classic per-agent loop remains documented in `agents/coordinator.md` as the fallback when workflows aren't installed.
+Judgment agents (planner, intent-validator, learning-extractor) and single tasks still run as direct `Agent` spawns; the classic per-agent loop remains documented in `agents/coordinator.md` as the fallback for single tasks or tightly coupled work.
 
 ---
 
@@ -490,28 +481,23 @@ claude-coordinator/
 ├── .claude-plugin/
 │   └── plugin.json               # Plugin manifest
 ├── bin/
-│   ├── claude-coordinator         # CLI launcher (symlinked to PATH by install.sh)
-│   └── coord-validate             # JSON Schema validator for agent outputs
+│   └── claude-coordinator         # CLI launcher (symlinked to PATH by install.sh)
 ├── agents/
-│   ├── coordinator.md             # Pure-delegation control plane (Agent-only, Fable)
+│   ├── coordinator.md             # Pure-delegation control plane (Fable)
 │   ├── briefer.md                 # Context reader and situational analyst (Haiku)
-│   ├── planner.md                 # Task breakdown with behavioral-test specs (Sonnet)
+│   ├── planner.md                 # Task breakdown with behavioral-test specs (Opus)
 │   ├── worker.md                  # Strict TDD implementation with red/green/regression commits (Sonnet)
 │   ├── worker-refactor.md         # Behavior-preserving refactors (Sonnet)
 │   ├── worker-test.md             # Coverage uplift with mutation-checked tests (Sonnet)
 │   ├── worker-investigation.md    # Read-only research, returns findings (Sonnet)
-│   ├── reviewer.md                # Read-only code reviewer + external second-model review (Opus)
-│   ├── ui-tester.md               # Visual quality inspector + external vision-model review (Sonnet)
-│   ├── ux-tester.md               # Usability evaluator + external vision-model review (Sonnet)
+│   ├── reviewer.md                # Read-only code reviewer + codex second opinion for tricky changes (Opus)
+│   ├── ui-tester.md               # Visual quality inspector (Sonnet)
+│   ├── ux-tester.md               # Usability evaluator (Sonnet)
 │   ├── system-tester.md           # Integration and coverage validator (Sonnet)
 │   ├── scribe.md                  # Lightweight state writer (Haiku)
 │   ├── intent-validator.md        # Validates work vs. original user intent (Opus)
 │   └── learning-extractor.md      # Analyzes outputs + JSONL transcripts for learnings (Sonnet)
-├── workflows/                     # Deterministic fan-out scripts (installed to .claude/workflows/)
-│   ├── coord-implement.js         # delegate+integrate: route, isolate, validate, TDD-gate, record
-│   ├── coord-review.js            # review: parallel finders → dedupe → adversarial verify → verdict
-│   └── coord-verify-product.js    # test: system + UI + UX testers in parallel
-├── schemas/                       # Canonical JSON Schema contracts for agent outputs
+├── schemas/                       # Canonical JSON Schema contracts for agent outputs (passed inline via the Workflow schema option)
 │   ├── README.md
 │   ├── worker-output.schema.json
 │   ├── worker-refactor-output.schema.json
@@ -530,13 +516,11 @@ claude-coordinator/
 │   ├── .worktreeinclude              # Files to copy into agent worktrees (env, local configs)
 │   ├── docs/
 │   │   ├── context/
-│   │   │   ├── current-intent.md
+│   │   │   ├── intent.md          # Captured user intent (written at intake, read at validate)
 │   │   │   ├── repo-practices.md
-│   │   │   ├── known-issues.md
-│   │   │   └── command-intent.md  # Captured user intent (written at intake, read at validate)
+│   │   │   └── known-issues.md
 │   │   └── plans/
 │   │       ├── active-plan.md
-│   │       ├── execution-brief.md
 │   │       └── test-spec.md       # Behavioral test specification template
 │   └── .coord/
 │       ├── task-ledger.json
@@ -606,29 +590,29 @@ Code review checks if the code is correct, secure, and well-tested. Intent valid
 
 **Why does the coordinator delegate file reads instead of reading directly?**
 
-This enforces a pure delegation architecture — the coordinator is *only* a control plane. It makes decisions based on information returned by subagents, never by directly accessing the filesystem. This keeps the coordinator's context clean (it only sees what it asked for) and makes the system easier to reason about. The reader uses Haiku, which is fast and cheap, so there's minimal overhead.
+This enforces a pure delegation architecture — the coordinator is *only* a control plane. It makes decisions based on information returned by subagents, not by bulk-reading the filesystem. Its own `Read` tool is reserved for spot-verification (a final diff, a cited line, a worker's claim) before high-impact decisions; everything else goes through the briefer. This keeps the coordinator's context clean (it only sees what it asked for) and makes the system easier to reason about. The reader uses Haiku, which is fast and cheap, so there's minimal overhead.
 
 
 ---
 
 ## Architecture Reference
 
-The coordinator is a pure control plane. Its only tool is `Agent`. It never reads or writes files directly — every operation is delegated to a specialized subagent. This keeps the coordinator's context clean (it sees only what it asked for) and makes the orchestration easy to reason about. The sections below describe the agent team, session flow, and discipline rules in detail.
+The coordinator is a pure control plane. Its tools are `Agent`, `Workflow`, `SendMessage`, the Task tools, `Skill`, and `Read` (spot-verification only — bulk reads go through the briefer). It never writes files directly — every write is delegated to a specialized subagent. This keeps the coordinator's context clean (it sees only what it asked for) and makes the orchestration easy to reason about. The sections below describe the agent team, session flow, and discipline rules in detail.
 
 ### The Agent Team
 
 | Agent | Model | Effort | Tools | Role |
 |-------|-------|--------|-------|------|
-| coordinator | Fable | high | Agent | Pure control plane — routes, decides, delegates |
+| coordinator | Fable | high | Agent, Workflow, SendMessage, TaskCreate, TaskUpdate, TaskList, Skill, Read | Pure control plane — routes, decides, delegates. Read is spot-verification only. |
 | briefer | Haiku | low | Read, Glob, Grep | Reads context, returns structured briefings |
-| planner | Sonnet | high | Read, Glob, Grep, Agent | Analyzes codebase, produces task breakdowns with behavioral test specs |
+| planner | Opus | high | Read, Glob, Grep, Agent | Analyzes codebase, produces task breakdowns with behavioral test specs |
 | worker | Sonnet | high | Full toolset | Strict TDD for `feature` and `bugfix` tasks. Produces audit-trail commits (red → green → regression). |
 | worker-refactor | Sonnet | medium | Full toolset | Behavior-preserving refactors. No new tests; existing suite must pass before and after. |
 | worker-test | Sonnet | medium | Full toolset | Adds tests to existing code. Mutation-checks its own tests to ensure they catch real breakage. |
 | worker-investigation | Sonnet | high | Read, Bash, Glob, Grep | Read-only research. Returns structured findings; no code edits, no commits. |
-| reviewer | Opus | xhigh | Read, Bash, Glob, Grep | Code review with severity ratings (+ external second-model review, default GPT-5.5) |
-| ui-tester | Sonnet | medium | Read, Bash, Glob, Grep | Visual quality inspector. Browser automation. (+ external vision-model review) |
-| ux-tester | Sonnet | high | Read, Bash, Glob, Grep | Usability evaluator. Browser automation. (+ external vision-model review) |
+| reviewer | Opus | xhigh | Read, Bash, Glob, Grep | Code review with severity ratings (+ GPT-5.6 Sol second opinion via codex MCP for tricky changes, if installed) |
+| ui-tester | Sonnet | medium | Read, Bash, Glob, Grep | Visual quality inspector. Browser automation. |
+| ux-tester | Sonnet | high | Read, Bash, Glob, Grep | Usability evaluator. Browser automation. |
 | system-tester | Sonnet | medium | Read, Bash, Glob, Grep | Integration validator. Full test suites, regression coverage, integration points. |
 | scribe | Haiku | low | Read, Write | All state writes (.coord/, docs/) |
 | intent-validator | Opus | high | Read, Glob, Grep | Validates completed work against user's original intent. Foreground only — asks user questions. |
@@ -648,7 +632,7 @@ delegate:  Workers execute in parallel (worktree-isolated)
              test           → worker-test    (mutation-checked tests)
              investigation  → worker-investigation (read-only findings)
 integrate: Validate worker output, check audit-trail commits exist
-review:    Reviewer checks code quality (+ external second-model pass)
+review:    Reviewer checks code quality (+ codex second opinion for tricky changes)
 test:      UI tester + UX tester + System tester validate the product
 promote:   Learning-extractor analyzes outputs + transcripts → Scribe records learnings
 validate:  Intent-validator confirms work matches user's intent
@@ -661,7 +645,7 @@ On the very first session in a new project (when `.coord/` does not exist), the 
 
 ### Session Resumption
 
-When `.coord/context-packet.md` exists and references an unfinished intent, the coordinator also reads `docs/context/command-intent.md` during startup so it can resume with complete intent context — not just task state.
+When `.coord/context-packet.md` exists and references an unfinished intent, the coordinator also reads `docs/context/intent.md` during startup so it can resume with complete intent context — not just task state.
 
 ### Behavioral Testing & Strict TDD with Audit-Trail Commits
 
@@ -713,34 +697,24 @@ After code review passes, three specialized testers validate the product from di
 
 UI and UX testing only runs for tasks with user-facing changes. Backend-only work only triggers the system tester.
 
-### Multi-Model Review
+### External Models via Codex MCP
 
-The architecture uses multiple AI models for review, leveraging each model family's strengths. External-model choices live in the agent prompts (not in schema field names), so they can be bumped without breaking output contracts — each output records which `model` actually ran.
+External-model use goes through the **codex MCP server** (`mcp__codex__codex` tools) — and only if it is installed in the session:
 
-| Agent | Primary Model | External Model (default) | Why |
-|-------|--------------|--------------------------|-----|
-| **Reviewer** | Claude Opus | GPT-5.5 | Different model families catch different code patterns; an independent second opinion on security, correctness, and edge cases. |
-| **UI Tester** | Claude Sonnet | Gemini 3.1 Pro (`gemini-3.1-pro-preview`) | Gemini's multimodal vision excels at spatial reasoning and layout analysis — ideal for catching visual issues in screenshots. |
-| **UX Tester** | Claude Sonnet | Gemini 3.1 Pro (`gemini-3.1-pro-preview`) | Gemini can hold a whole multi-screenshot flow in one context and spot navigation disconnects between screens. |
+- **Implementation**: for well-specified tasks with a precise contract and clear file boundaries, implementation can be delegated to Codex running **GPT-5.6 terra at medium reasoning** — significantly cheaper than a local worker. Ambiguous or judgment-heavy tasks stay on local workers.
+- **Review second opinion**: for tricky changes, the reviewer (Opus) gets a second opinion from **GPT-5.6 Sol at xhigh reasoning**. External findings are incorporated into the reviewer's own findings — not blindly copied; the reviewer evaluates them and may dismiss false positives.
 
-**Cheap/fast alternative tier** (documented in the agent prompts; swap in when volume matters more than peak capability):
-
-- Code second opinion: **GLM-5.2** (`llm -m openrouter/z-ai/glm-5.2`) — open-weight, reported above GPT-5.5 on SWE-bench Pro at a fraction of the cost (practitioner-reported benchmark; verify against your own diffs). **DeepSeek V4 Pro** (`llm -m openrouter/deepseek/deepseek-v4-pro`) is the cheapest option and strongest on algorithm-heavy diffs.
-- Visual/UX review: **Gemini 3.5 Flash** (`gemini-3.5-flash`) — same vision support at a fraction of the Pro price. The open text-only models (GLM-5.2, DeepSeek V4 Pro) cannot do visual review — no vision input.
-
-External reviews are incorporated into each agent's own findings — not blindly copied. Each agent evaluates external findings and may dismiss false positives.
-
-**Prerequisites:** The `llm` CLI (`pip install llm`) with: an OpenAI key for `gpt-5.5` (built into core `llm`); `llm install llm-gemini` + Gemini key for the vision models; optionally `llm install llm-openrouter` + OpenRouter key for GLM-5.2 / DeepSeek V4 Pro. Note: the legacy `llm-deepseek` plugin does not expose V4 models — use OpenRouter or an OpenAI-compatible endpoint config. If a model is missing, agents record `submitted: false` with a skip reason rather than failing.
+If the codex MCP server is not installed, everything runs locally and the second-opinion pass is skipped. The UI and UX testers no longer have an external vision-model pass.
 
 ### Command Intent Capture
 
-At intake, the coordinator writes a `docs/context/command-intent.md` capturing what the user wants — their exact words, the coordinator's interpreted intent, success criteria, the user's mental model, assumptions, and what's explicitly out of scope.
+At intake, the coordinator writes `docs/context/intent.md` capturing what the user wants — their exact words, the coordinator's interpreted intent, success criteria, the user's mental model, assumptions, and what's explicitly out of scope.
 
 The user confirms the intent document before work begins. This ensures the coordinator and the user agree on what "done" means before any tasks are delegated.
 
 At session end, the **intent-validator** compares the completed work against the original intent document. It reads the actual implementation files (not just summaries), performs a gap analysis across scope, interpretation, assumptions, UX, and completeness — and may ask the user clarifying questions directly.
 
-The validator runs in foreground and can ask the user questions. It returns one of three verdicts:
+The validator runs in foreground and can ask the user questions — agents spawn in background by default, so the coordinator spawns it with `run_in_background: false`. It returns one of three verdicts:
 - **SATISFIED** — Work matches intent. Proceed to close.
 - **NEEDS-WORK** — Gaps found. Return to delegate phase with specific remediation tasks.
 - **NEEDS-DISCUSSION** — Ambiguity found. Facilitate discussion, update the intent doc, then re-evaluate.

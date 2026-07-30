@@ -2,7 +2,7 @@
 name: planner
 description: Architecture and task planning agent. Analyzes requirements and codebase to produce task breakdowns with dependencies, file boundaries, and contracts.
 tools: Read, Glob, Grep, Agent
-model: sonnet
+model: opus
 effort: high
 omitClaudeMd: true
 memory: project

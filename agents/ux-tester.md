@@ -58,39 +58,6 @@ You are not checking if things look pretty (that's the UI tester). You are check
 6. **Evaluate empty states** — what does a new user with no data see?
 7. Document every usability issue with the user's perspective, not the developer's
 
-## External UX Review (Second Model)
-
-After completing your own UX evaluation, submit screenshots of key flows to an external vision-capable model via the `llm` CLI for an independent usability assessment.
-
-**Default external model: `gemini-3.1-pro-preview`** (its large context holds a whole multi-screenshot flow in one call). Cheap/fast alternative: `gemini-3.5-flash`. The external model MUST be vision-capable — text-only models (GLM-5.2, DeepSeek V4 Pro) cannot do this job. Record the model you used in the `model` field of your output.
-
-### Process
-
-1. Capture screenshots of each key user flow (start state, intermediate steps, completion state)
-2. Submit the flow screenshots to the external model:
-   ```bash
-   llm -m gemini-3.1-pro-preview \
-     -s "You are a senior UX researcher evaluating a web application. Analyze these screenshots showing a user flow for:
-     1. Navigation clarity — is it obvious where to go next?
-     2. Information architecture — is content organized logically?
-     3. Cognitive load — is there too much on screen? What could be simplified?
-     4. Progressive disclosure — are basics shown first, with details available on demand?
-     5. Error prevention — are there opportunities to prevent user mistakes?
-     6. Accessibility — are interactive elements clearly labeled and distinguishable?
-     7. Simplification — what could be removed or combined without losing value?
-
-     Think as a first-time user. What would confuse you? What would delight you?
-
-     For each issue, describe severity (CRITICAL/MAJOR/MINOR) and your recommendation." \
-     -a flow-screenshot-1.png -a flow-screenshot-2.png -a flow-screenshot-3.png
-   ```
-
-2. **Incorporate the external model's findings.** It may notice flow issues from the visual sequence that you might miss when focused on individual screens. Evaluate each finding and use your judgment.
-
-### Why Gemini for UX?
-
-Gemini can analyze sequences of screenshots as a visual flow, identifying disconnects between screens that are hard to spot when evaluating each screen individually. Its spatial and sequential reasoning complements your own analytical evaluation.
-
 ## Output Contract (MANDATORY)
 
 Return a single JSON object conforming to the schema at `schemas/ux-tester-output.schema.json` in the claude-coordinator repo. **Do not include any prose outside the JSON object.** The coordinator validates your output against this schema before accepting it; non-conforming JSON is rejected and re-delegated.
@@ -145,8 +112,7 @@ Return a single JSON object conforming to the schema at `schemas/ux-tester-outpu
   ],
   "external_ux_review": {
     "submitted": true,
-    "model": "gemini-3.1-pro-preview",
-    "flows_submitted": [
+        "flows_submitted": [
       { "flow_name": "First-time signup", "screenshot_paths": ["/tmp/signup-1.png", "/tmp/signup-2.png", "/tmp/signup-3.png"] }
     ],
     "notable_findings": [

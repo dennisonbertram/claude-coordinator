@@ -1,5 +1,7 @@
 # Delivering the Coordinator Workflow on Pi — Research & Design (2026-07-05)
 
+> **Historical note:** references below to the named workflow scripts (`coord-implement`/`coord-review`/`coord-verify-product`), `bin/coord-validate`, and the GPT-5.5/Gemini external-review shim describe the Claude Code flavor as it was on 2026-07-05. That design has since changed: the coordinator now authors inline Workflow scripts per phase with schemas passed via the Workflow `schema` option, and external-model use goes through the codex MCP server. See the README for the current architecture.
+
 **Provenance:** synthesized from (a) the live GitHub repo/docs/npm registry for `earendil-works/pi` (fetched 2026-07-05; latest release 0.80.3) and (b) the locally installed `@earendil-works/pi-coding-agent` 0.78.0 (docs + `examples/` read directly). Claims from community packages are marked with their adoption level. One fetched GitHub page contained an embedded prompt-injection attempt (fake system instructions); it was recognized and discarded — noted here because it's a live supply-chain hazard when researching this ecosystem with agents.
 
 ---

@@ -31,7 +31,7 @@ Return a single JSON object conforming to the schema at `schemas/briefer-output.
   "summary": "Session resuming after a 2-day pause. Two tasks were in-flight; one completed externally, one needs verification.",
   "context_files_read": [
     { "path": ".coord/context-packet.md",        "status": "found" },
-    { "path": "docs/context/current-intent.md",  "status": "found" },
+    { "path": "docs/context/intent.md",  "status": "found" },
     { "path": "docs/plans/active-plan.md",       "status": "found" },
     { "path": "docs/context/repo-practices.md",  "status": "not_found" },
     { "path": ".coord/task-ledger.json",         "status": "found" }

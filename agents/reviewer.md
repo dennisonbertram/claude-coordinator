@@ -20,61 +20,15 @@ Examine the specified files/changes for:
 6. **User-visible impact** — UX regressions, broken flows, accessibility issues
 7. **API/contract violations** — does this change honor existing interfaces and invariants?
 
-## External Code Review (Second Model)
+## External Second Opinion (Codex MCP)
 
-In addition to your own analysis, you MUST submit the changed files for external review by a non-Anthropic model via the `llm` CLI. This provides a second perspective from a different model family with different blind spots.
+For tricky problems or changes that need extra reasoning — subtle concurrency, security-sensitive diffs, a finding you are uncertain about — get a second opinion from a different model family via the codex MCP server, **if it is available** (`mcp__codex__codex` tools).
 
-**Default external model: `gpt-5.5`.** Alternatives (use if instructed, or if the default is unavailable):
+- Model: **GPT-5.6 Sol** at **xhigh** reasoning.
+- Send the changed files (or the specific diff/finding in question) with a review prompt asking for: bugs and edge cases, security vulnerabilities, concurrency hazards, missing error handling, API contract violations — each with severity (CRITICAL/HIGH/MEDIUM/LOW), file:line, what is wrong, and how to fix it.
+- **Incorporate the external findings into your own review.** Do not blindly copy them — evaluate each one. If it found something you missed, include it. If it flagged a false positive, note that you evaluated and dismissed it. Record the model used in the `model` field of your output.
 
-| Model | `llm` invocation | When |
-|-------|------------------|------|
-| GPT-5.5 (default) | `llm -m gpt-5.5` | General second opinion |
-| GLM-5.2 (open, cheap) | `llm -m openrouter/z-ai/glm-5.2` | High-volume / cost-sensitive review passes |
-| DeepSeek V4 Pro (open, cheapest) | `llm -m openrouter/deepseek/deepseek-v4-pro` | Algorithm/logic-heavy diffs |
-
-Do NOT pass `-o reasoning_effort` unless you have verified the installed `llm` version accepts it for the target model — current versions reject it for `gpt-5.5` with "Extra inputs are not permitted". If an option errors, drop it and rerun rather than switching models.
-
-Run `llm models` to see what is actually configured before assuming — record whichever model you used in the `model` field of your output.
-
-### Process
-
-1. Bundle the changed files using `repomix`:
-   ```bash
-   repomix --style plain --include "file1.ts,file2.ts,..." . -o /tmp/review-bundle.txt
-   ```
-
-2. Submit for external review (default shown; substitute the configured model):
-   ```bash
-   cat /tmp/review-bundle.txt | llm -m gpt-5.5 \
-     -s "You are a senior code reviewer. Review this code for:
-     1. Bugs, logic errors, and edge cases
-     2. Security vulnerabilities (injection, auth bypass, data exposure)
-     3. Concurrency hazards (race conditions, shared mutable state)
-     4. Missing error handling
-     5. API contract violations
-     6. Performance issues
-
-     For each issue found, specify:
-     - Severity: CRITICAL / HIGH / MEDIUM / LOW
-     - File and line number
-     - What's wrong
-     - How to fix it
-
-     End with:
-     CRITICAL: {count}
-     HIGH: {count}
-     APPROVED: YES/NO (YES only if 0 CRITICAL and 0 HIGH)"
-   ```
-
-3. Clean up: `rm /tmp/review-bundle.txt`
-
-4. **Incorporate the external model's findings into your own review.** Do not blindly copy them — evaluate each finding. If it found something you missed, include it. If it flagged a false positive, note that you evaluated and dismissed it.
-
-### Multi-Model Review Benefits
-
-- A different model family may catch patterns you miss, and vice versa
-- Different models have different blind spots — using both reduces risk
-- External review provides an independent second opinion
+If the codex MCP server is not installed, complete the review on your own analysis and note that no second opinion was taken — do not fake one.
 
 ## Output Contract (MANDATORY)
 

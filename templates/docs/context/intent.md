@@ -1,4 +1,7 @@
-# Command Intent
+# Intent
+
+## What We're Building
+<!-- The current feature or project goal, and why -->
 
 ## User's Request
 <!-- Exact words the user used to describe what they want -->

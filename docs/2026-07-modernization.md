@@ -1,5 +1,7 @@
 # Claude Coordinator Modernization — 2026-07-03
 
+> **Historical note (superseded):** the named workflow scripts described below (`workflows/coord-implement.js`, `coord-review.js`, `coord-verify-product.js`) and `bin/coord-validate` were later removed. The coordinator now authors inline Workflow scripts per phase, passing output schemas via the Workflow `schema` option; `install.sh` no longer installs workflows. See the README for the current architecture.
+
 What changed in this pass, and what it saves. **Provenance discipline:** figures marked *measured* come from live harness runs on 2026-07-03 (n=1 per configuration, token counts summed from agent transcripts, priced at API sticker rates). Figures marked *structural* are rate arithmetic on published pricing. Anything unmeasured says so.
 
 ---

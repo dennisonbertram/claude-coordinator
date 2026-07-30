@@ -1,0 +1,9 @@
+{
+  "name": "stats-lib",
+  "version": "1.0.0",
+  "description": "Fixture project for the claude-coordinator workflow test harness",
+  "scripts": {
+    "test": "node --test ./test/*.test.js"
+  },
+  "license": "MIT"
+}

@@ -126,7 +126,7 @@ if [ "$INIT_PROJECT" = true ]; then
   # docs/context/
   mkdir -p docs/context docs/plans .coord
 
-  for f in current-intent.md repo-practices.md known-issues.md; do
+  for f in intent.md repo-practices.md known-issues.md; do
     dst="docs/context/$f"
     if [ -f "$dst" ]; then
       echo "  Skipping (exists): $dst"
@@ -137,7 +137,7 @@ if [ "$INIT_PROJECT" = true ]; then
   done
 
   # docs/plans/
-  for f in active-plan.md execution-brief.md; do
+  for f in active-plan.md; do
     dst="docs/plans/$f"
     if [ -f "$dst" ]; then
       echo "  Skipping (exists): $dst"
@@ -157,6 +157,7 @@ if [ "$INIT_PROJECT" = true ]; then
       echo "  Created: $dst"
     fi
   done
+
 
   echo ""
   echo "Project initialized."

@@ -1,6 +1,6 @@
 # Agent Output Schemas
 
-These JSON Schemas (Draft 2020-12) are the canonical contracts for each agent's structured output. Agents return JSON conforming to their schema; the coordinator validates the JSON before accepting it.
+These JSON Schemas (Draft 2020-12) are the canonical contracts for each agent's structured output. Agents return JSON conforming to their schema; validation happens at the tool layer when the coordinator passes the schema via the Workflow `schema` option.
 
 | Schema | Agent | Purpose |
 |--------|-------|---------|
@@ -20,13 +20,7 @@ These JSON Schemas (Draft 2020-12) are the canonical contracts for each agent's 
 
 ## Validating output
 
-Use `bin/coord-validate` to check a JSON file against its schema:
-
-```bash
-bin/coord-validate worker output.json
-```
-
-Under the hood this runs `ajv` (preferred) or a JSON Schema validator of your choice. The coordinator delegates this check to a scribe or worker during the `integrate` phase.
+Validation happens at the tool layer: when the coordinator authors an inline Workflow script, it passes the relevant schema via the Workflow `schema` option, so non-conforming output is rejected and retried against the worker before it ever reaches the coordinator. For direct Agent spawns, the coordinator states the schema in the prompt and rejects non-conforming output during the `integrate` phase.
 
 ## Why schemas instead of Markdown templates
 

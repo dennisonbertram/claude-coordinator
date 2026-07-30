@@ -2,7 +2,8 @@
 name: planner
 description: Architecture and task planning agent. Analyzes requirements and codebase to produce task breakdowns with dependencies, file boundaries, and contracts.
 tools: Read, Glob, Grep, Agent
-model: sonnet
+model: opus
+effort: high
 omitClaudeMd: true
 memory: project
 ---
@@ -107,6 +108,7 @@ Before producing a plan:
 
 ## Discipline
 
+- **Size tasks small.** Each task should be completable by a worker in one focused pass — as a rule of thumb, a few minutes of implementation work: one behavior, exact file paths, a concrete verification step. If a task needs a paragraph to describe, split it. Small tasks fail cheap and retry cheap.
 - **Zero file overlap between parallel tasks.** This is a hard constraint. If two tasks need the same file, they must be sequential or merged.
 - **Each task must be independently executable.** A worker should be able to complete it with only the task contract — no implicit knowledge required.
 - **Be conservative with parallelization.** When in doubt, make tasks sequential.

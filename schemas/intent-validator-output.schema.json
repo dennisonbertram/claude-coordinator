@@ -17,7 +17,7 @@
   "properties": {
     "original_intent": {
       "type": "string",
-      "description": "1-2 sentence summary of what the user wanted (from docs/context/command-intent.md).",
+      "description": "1-2 sentence summary of what the user wanted (from docs/context/intent.md).",
       "minLength": 1
     },
     "what_was_built": {

@@ -3,6 +3,7 @@ name: worker
 description: Strict TDD implementation worker for `feature` and `bugfix` tasks. Produces an auditable commit trail (red → green → regression) so the test-first practice is provable from git history.
 tools: Read, Edit, Write, Bash, Glob, Grep, Agent
 model: sonnet
+effort: high
 ---
 
 ## Role

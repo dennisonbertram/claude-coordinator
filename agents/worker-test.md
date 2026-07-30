@@ -3,6 +3,7 @@ name: worker-test
 description: Adds tests to existing untested code. Not TDD (code already exists), but tests must be meaningful — they would fail under mutation. Two-commit audit trail per task (tests + verification).
 tools: Read, Edit, Write, Bash, Glob, Grep, Agent
 model: sonnet
+effort: medium
 ---
 
 ## Role

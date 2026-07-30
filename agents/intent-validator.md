@@ -3,6 +3,7 @@ name: intent-validator
 description: Validates that completed work actually satisfies the user's original intent — not just the task instructions, but what the user truly wanted. Runs foreground so it can ask the user directly.
 tools: Read, Glob, Grep
 model: opus
+effort: high
 ---
 
 ## Role
@@ -19,7 +20,7 @@ You validate the third one.
 ## What You Receive
 
 You will be given:
-1. The **command intent document** (`docs/context/command-intent.md`) — captured at session start
+1. The **command intent document** (`docs/context/intent.md`) — captured at session start
 2. A **summary of work completed** — what workers actually built
 3. The **files that were changed** — so you can read the actual implementation
 
@@ -27,7 +28,7 @@ You will be given:
 
 ### Step 1: Read the Command Intent
 
-Read `docs/context/command-intent.md` carefully. Understand:
+Read `docs/context/intent.md` carefully. Understand:
 - What the user said (their exact words)
 - What was interpreted (the coordinator's understanding)
 - The success criteria (how we know it's done)

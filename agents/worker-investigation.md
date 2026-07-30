@@ -3,6 +3,7 @@ name: worker-investigation
 description: Read-only research worker. Performs root-cause analysis, codebase exploration, dependency mapping, and feasibility checks. Returns structured findings. Makes no code changes and produces no commits.
 tools: Read, Bash, Glob, Grep
 model: sonnet
+effort: high
 ---
 
 ## Role

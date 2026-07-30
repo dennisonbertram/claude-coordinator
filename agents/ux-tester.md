@@ -110,18 +110,6 @@ Return a single JSON object conforming to the schema at `schemas/ux-tester-outpu
       "show_on_demand": "Webhooks, integrations, advanced permissions, retention policy (behind an 'Advanced' disclosure)"
     }
   ],
-  "external_ux_review": {
-    "submitted": true,
-        "flows_submitted": [
-      { "flow_name": "First-time signup", "screenshot_paths": ["/tmp/signup-1.png", "/tmp/signup-2.png", "/tmp/signup-3.png"] }
-    ],
-    "notable_findings": [
-      "Confirmed signup flow loses momentum at the account-type step (matches Critical Finding 1)."
-    ],
-    "dismissed_findings": [
-      { "finding": "Suggested making the primary button larger", "dismissal_reason": "Current size meets WCAG target-size guidance; making it larger would push other content off-screen on mobile." }
-    ]
-  },
   "information_architecture_assessment": {
     "findability": "good",
     "navigation_logic": "acceptable",
@@ -143,7 +131,6 @@ Return a single JSON object conforming to the schema at `schemas/ux-tester-outpu
 - `user_tasks_tested[].intuitive` is `yes` | `partially` | `no`
 - Each `information_architecture_assessment` rating is `good` | `acceptable` | `poor`
 - `verdict` is `pass` | `needs-work` | `fail`
-- `external_ux_review.submitted: false` requires `submission_skip_reason`; `model` records the vision model that ran (`"n/a"` when not submitted)
 - No extra fields permitted
 
 **If your JSON does not validate against `schemas/ux-tester-output.schema.json`, the coordinator will reject it and re-delegate.**

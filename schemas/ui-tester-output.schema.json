@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dennisonbertram/claude-coordinator/schemas/ui-tester-output.schema.json",
   "title": "UI Tester Output",
-  "description": "Output contract for the `ui-tester` agent. Visual quality assessment with browser automation and an external vision-model review (via the `llm` CLI; model recorded per run).",
+  "description": "Output contract for the `ui-tester` agent. Visual quality assessment with browser automation.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,7 +10,6 @@
     "visual_issues",
     "design_standards",
     "console_errors",
-    "external_visual_review",
     "verdict",
     "recommended_fixes"
   ],
@@ -57,30 +56,6 @@
       "type": "array",
       "description": "Rendering-related console errors observed in the browser.",
       "items": { "type": "string" }
-    },
-    "external_visual_review": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["submitted", "model", "screenshots_count", "notable_findings", "dismissed_findings"],
-      "properties": {
-        "submitted":              { "type": "boolean" },
-        "model":                  { "type": "string", "description": "The external vision model that actually ran (e.g. 'gemini-3.1-pro-preview', 'gemini-3.5-flash'). 'n/a' when not submitted." },
-        "submission_skip_reason": { "type": "string", "description": "Required when submitted is false." },
-        "screenshots_count":      { "type": "integer", "minimum": 0 },
-        "notable_findings":       { "type": "array", "items": { "type": "string" } },
-        "dismissed_findings":     {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["finding", "dismissal_reason"],
-            "properties": {
-              "finding":          { "type": "string", "minLength": 1 },
-              "dismissal_reason": { "type": "string", "minLength": 1 }
-            }
-          }
-        }
-      }
     },
     "verdict": {
       "type": "string",

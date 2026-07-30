@@ -53,11 +53,11 @@
         },
         "model": {
           "type": "string",
-          "description": "The external model that actually ran (e.g. 'gpt-5.5', 'z-ai/glm-5.2', 'deepseek/deepseek-v4-pro'). 'n/a' when not submitted."
+          "description": "The external model that actually ran (e.g. 'gpt-5.6-sol' via the codex MCP server). 'n/a' when not submitted."
         },
         "submission_skip_reason": {
           "type": "string",
-          "description": "If submitted is false, why (e.g., 'llm CLI not available'). Required when submitted is false."
+          "description": "If submitted is false, why (e.g., 'codex MCP server not available'). Required when submitted is false."
         },
         "verdict": {
           "type": "string",

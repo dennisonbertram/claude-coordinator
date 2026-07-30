@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Instantiate the stats-lib fixture into a target directory as a fresh git repo,
-# and install the repo's workflows into the fixture's .claude/workflows/.
+# Instantiate the stats-lib fixture into a target directory as a fresh git repo.
 #
 # Usage: setup-fixture.sh <target-dir>
 
@@ -23,9 +22,6 @@ printf '.coord/\nnode_modules/\n' > .gitignore
 git init -q
 git add -A
 git -c user.name="harness" -c user.email="harness@localhost" commit -qm "chore: initial fixture state"
-
-mkdir -p .claude/workflows
-cp "$REPO_ROOT"/workflows/*.js .claude/workflows/
 
 echo "Fixture ready at: $TARGET"
 echo "Baseline test run:"

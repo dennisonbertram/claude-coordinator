@@ -8,8 +8,8 @@ The two flavors install through **completely different mechanisms** — don't mi
 
 | | Claude Code plugin (repo root) | Pi package (this `pi/` directory) |
 |---|---|---|
-| Install | `claude plugin install claude-coordinator`, or `./install.sh` (copies `agents/*.md` → `~/.claude/agents/`, workflows → `.claude/workflows/`) | `pi install <source>` — Pi's own package manager; nothing is copied into `~/.claude/` |
-| Where things land | `~/.claude/agents/`, project `.claude/workflows/` | Pi's package store; enabled via `~/.pi/agent/settings.json` (global) or `.pi/settings.json` (project, with `-l`) |
+| Install | `claude plugin install claude-coordinator`, or `./install.sh` (copies `agents/*.md` → `~/.claude/agents/`) | `pi install <source>` — Pi's own package manager; nothing is copied into `~/.claude/` |
+| Where things land | `~/.claude/agents/` | Pi's package store; enabled via `~/.pi/agent/settings.json` (global) or `.pi/settings.json` (project, with `-l`) |
 | The coordinator | A dedicated **agent** (`claude --agent coordinator`, runs on Fable) | **Your own interactive Pi session** + the `coord_*` tools this package registers — there is no spawned coordinator model |
 | Fan-out mechanics | Claude Code `Workflow` scripts + `Agent` tool | The extension spawns `pi --mode json -p --no-session` child processes per worker |
 | State writes (`.coord/`) | Haiku scribe agents | Plain TypeScript in the extension — zero tokens |

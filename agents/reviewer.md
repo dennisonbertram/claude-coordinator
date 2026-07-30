@@ -53,7 +53,7 @@ Return a single JSON object conforming to the schema at `schemas/reviewer-output
   ],
   "external_code_review": {
     "submitted": true,
-    "model": "gpt-5.5",
+    "model": "gpt-5.6-sol",
     "verdict": "not_approved",
     "critical_count": 1,
     "high_count": 0,
@@ -78,7 +78,7 @@ Return a single JSON object conforming to the schema at `schemas/reviewer-output
 - `overall_severity` must reflect the highest severity in `findings`; use `"pass"` when `findings` is empty
 - `findings[].severity` must be one of `critical`, `high`, `medium`, `low`, `info`
 - `external_code_review.submitted: false` requires `submission_skip_reason` and `verdict: "n/a"`
-- `external_code_review.model` records which external model actually ran (e.g. `gpt-5.5`, `z-ai/glm-5.2`); use `"n/a"` when not submitted
+- `external_code_review.model` records which external model actually ran (e.g. `gpt-5.6-sol` via the codex MCP server); use `"n/a"` when not submitted
 - `approved.verdict: "conditional"` requires a non-empty `conditions` array
 - No extra fields permitted
 

@@ -87,16 +87,6 @@ Return a single JSON object conforming to the schema at `schemas/ui-tester-outpu
     "overall": "acceptable"
   },
   "console_errors": [],
-  "external_visual_review": {
-    "submitted": true,
-        "screenshots_count": 4,
-    "notable_findings": [
-      "Confirmed the button/footer overlap on mobile (matches Critical Finding 1)"
-    ],
-    "dismissed_findings": [
-      { "finding": "Suggested adding a hover state to static text", "dismissal_reason": "Static text is not interactive; hover state would be misleading." }
-    ]
-  },
   "verdict": "needs-work",
   "recommended_fixes": [
     "Fix mobile layout for Login: clamp form max-height so the submit button never collides with the footer."
@@ -108,7 +98,6 @@ Return a single JSON object conforming to the schema at `schemas/ui-tester-outpu
 
 - Each `design_standards` rating is `good` | `acceptable` | `poor`
 - `verdict` is `pass` | `needs-work` | `fail`
-- `external_visual_review.submitted: false` requires `submission_skip_reason`; `model` records the vision model that ran (`"n/a"` when not submitted)
 - `visual_issues` always contains `critical`, `major`, `minor` arrays — pass `[]` for empty
 - No extra fields permitted
 

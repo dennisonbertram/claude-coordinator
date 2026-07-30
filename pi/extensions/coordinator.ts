@@ -207,7 +207,7 @@ function sumUsage(results: Array<{ usage: WorkerResult["usage"] }>): WorkerResul
 }
 
 // ---------------------------------------------------------------------------
-// Deterministic gates (ported from workflows/coord-implement.js)
+// Deterministic gates (ported from the Claude flavor's implement-phase workflow logic)
 // ---------------------------------------------------------------------------
 
 const TDD_TYPES = new Set(["feature", "bugfix"]);

@@ -1,5 +1,7 @@
 # Workflow Layer — Harness Results (2026-07-03)
 
+> **Historical note:** these results record runs of the named workflow scripts (`coord-implement`/`coord-review`/`coord-verify-product`), which have since been deleted in favor of coordinator-authored inline Workflow scripts.
+
 **Provenance:** single live run of each workflow (plus one re-run of `coord-review` after optimization) against the `stats-lib` fixture, executed from a Claude Code session on this machine on 2026-07-03. Token counts summed from the runs' agent transcripts by `collect-metrics.sh`; **dollar figures are API-equivalent estimates at sticker rates** (Sonnet $3/$15, Opus $5/$25, Haiku $1/$5; cache read 0.1×, cache write 1.25×) — subscription usage is not billed per token, and Sonnet 5 intro pricing would be lower. n=1 per configuration; durations and verdicts vary run to run.
 
 ## Run summary

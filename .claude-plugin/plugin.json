@@ -1,7 +1,7 @@
 {
   "name": "claude-coordinator",
   "version": "1.0.0",
-  "description": "A structured orchestration system for Claude Code that plans, delegates, reviews, and learns. A Fable coordinator drives tiered Sonnet/Opus/Haiku agents through deterministic workflow scripts for implement, review, and test fan-outs.",
+  "description": "A structured orchestration system for Claude Code that plans, delegates, reviews, and learns. A Fable coordinator drives tiered Sonnet/Opus/Haiku agents through inline-authored Workflow scripts for implement, review, and test fan-outs.",
   "author": {
     "name": "Dennison Bertram"
   },

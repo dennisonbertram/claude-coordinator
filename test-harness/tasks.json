@@ -1,5 +1,5 @@
 {
-  "comment": "Task contracts for the workflow test harness. Pass as args.tasks to coord-implement with repo_root pointing at the instantiated fixture. File scopes are disjoint by design (see README caveat on shared-repo concurrency).",
+  "comment": "Task contracts for the coordinator test harness. Feed .tasks to the coordinator's inline implement-batch workflow with repo_root pointing at the instantiated fixture. File scopes are disjoint by design (see README caveat on shared-repo concurrency).",
   "tasks": [
     {
       "task_id": "TASK-001",
@@ -20,7 +20,7 @@
           "Given an empty array, percentile throws a RangeError"
         ],
         "regression_test_requirements": "test/percentile.test.js must cover interpolation between ranks, both boundaries (p=0, p=100), invalid p, and empty input, so future changes to the interpolation method are caught.",
-        "output_contract": "Return the load-bearing result object per the coord-implement workflow schema."
+        "output_contract": "Return the load-bearing result object per schemas/worker-output.schema.json."
       }
     },
     {
@@ -39,7 +39,7 @@
           "When median([3,1,2]) is called, it still returns 2 (odd-length regression)"
         ],
         "regression_test_requirements": "test/stats.test.js must permanently cover the even-length case so the truncation bug cannot silently return.",
-        "output_contract": "Return the load-bearing result object per the coord-implement workflow schema."
+        "output_contract": "Return the load-bearing result object per schemas/worker-output.schema.json."
       }
     }
   ]
